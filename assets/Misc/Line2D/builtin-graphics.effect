@@ -1,0 +1,177 @@
+// Effect Syntax Guide: https://github.com/cocos-creator/docs-3d/blob/master/zh/material-system/effect-syntax.md
+
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: vs:vert
+      frag: fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: one
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: one
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      properties:
+        mainText: { value: white}
+        tilingTexture: { value: [1.0, 1.0, 0.0, 0.0]}
+        speed: { value: 1.0, editor: { slide: true, range: [0.0, 5.0], step: 0.001 } }
+        alpha: { value: 0.0, editor: { slide: true, range: [0, 1], step: 0.01 } }
+        brightness: { value: 0.0 , editor: { slide: true, range: [-1.0, 1.0], step: 0.001 }  }
+        contrast: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 }  }
+        saturation: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 } }
+        hue:        { value: 0.0, editor: { slide: true, range: [-180.0, 180.0], step: 1.0 } }    # độ
+}%
+
+CCProgram vs %{
+  precision highp float;
+
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  out vec3 v_pos;
+
+  in vec4 a_color;
+  out vec4 v_color;
+
+  in float a_dist;
+  out float v_dist;
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+    pos = cc_matViewProj * cc_matWorld * pos;
+
+    v_pos = a_position;
+    v_color = a_color;
+    v_dist = a_dist;
+
+    return pos;
+  }
+}%
+
+CCProgram fs %{
+  #pragma extension([GL_OES_standard_derivatives, __VERSION__ < 300])
+
+  #include <builtin/uniforms/cc-global>
+  precision highp float;
+
+  in vec4 v_color;
+  in float v_dist;
+  in vec3 v_pos;
+
+  uniform sampler2D mainText;
+
+  uniform Constant {
+    vec4 matPoses[100];
+    vec4 tilingTexture;
+    float maxTotalLength;
+    float speed;
+    float alpha;
+    float brightness;
+    float contrast;
+    float saturation;
+    float hue;
+  };
+
+  
+  vec3 hueShift(vec3 color, float hueDeg) {
+    float hue = radians(hueDeg); // convert deg → rad
+    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+    float cosAngle = cos(hue);
+    return vec3(color * cosAngle + cross(k, color) * sin(hue) + k * dot(k, color) * (1.0 - cosAngle));
+  }
+  vec3 AdjustSaturation(vec3 color, float sat) {
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(gray), color, sat);
+  }
+
+  vec4 frag () {
+    // vec4 o = vec4(1., 1., 1., 1.);
+    vec4 o = v_color;
+
+    #if __VERSION__ < 300
+      #ifdef GL_OES_standard_derivatives
+        float aa = fwidth(v_dist);
+      #else
+        float aa = 0.05;
+      #endif
+    #else
+      float aa = fwidth(v_dist);
+    #endif
+
+
+
+    float dis = 9999.0;
+    int index = 0;
+    vec4 curr;
+    vec4 prev;
+    vec4 pprev;
+    float total;
+    float len;
+
+    for(int i = 0; i < 100; i++) {
+      if(float(i) >= maxTotalLength) break;
+      if(float(i) == maxTotalLength - 1.0) {
+        total = matPoses[i - 1].w;
+      }
+      vec4 pos = matPoses[i];
+      float dist = length(pos.xy - v_pos.xy);
+      if(dist < dis) {
+        index = i;
+        dis = dist;
+        curr = pos;
+        prev = matPoses[i - 1];
+        pprev = matPoses[i - 2];
+      }
+    }
+
+    if( index > 0) {
+      len = prev.w;
+      float dist = length(prev.xy - v_pos.xy);
+      float cDist = length(prev.xy - curr.xy);
+      if(dist < cDist) {
+        index = index - 1;
+        dis = dist;
+        len = pprev.w;
+      }
+    }
+
+    vec2 uv;
+    uv.y = (v_dist + 1.0) * 0.5;
+    uv.x = (len + dis) / total;
+    // uv.x = 0.0;
+    uv.xy = uv.xy * tilingTexture.xy;
+    uv.xy = fract(uv.xy);
+    uv.x -= cc_time.x * speed;
+    uv.xy = fract(uv.xy);
+
+    o *= texture(mainText, uv);
+
+
+
+    float alphaSm = 1. - smoothstep(-aa, 0., abs(v_dist) - 1.0);
+    // o.rbg += v_color.rbg;
+    o.rgb *= o.a;
+    o *= alphaSm;
+
+    
+    o.rgb = hueShift(o.rgb, hue);
+    // Độ sáng
+    o.rgb += brightness;
+
+    // Độ tương phản
+    o.rgb = ((o.rgb - 0.5) * contrast + 0.5);
+
+    // Độ bão hòa
+    o.rgb = AdjustSaturation(o.rgb, saturation);
+    if(o.a < alpha) discard;
+
+    return o;
+  }
+}%

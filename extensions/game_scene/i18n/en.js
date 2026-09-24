@@ -1,0 +1,1 @@
+"use strict";module.exports={open_panel:"Game Scene",send_to_panel:"Send message to Game Scene",description:"Game Scene panel"};

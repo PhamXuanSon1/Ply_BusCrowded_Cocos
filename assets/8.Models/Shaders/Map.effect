@@ -1,0 +1,539 @@
+// Copyright (c) 2017-2022 Xiamen Yaji Software Co., Ltd.
+
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: standard-vs
+      frag: standard-fs
+      resterizerState:
+        cullMode: none
+      properties: &props
+        tilingOffset:                     { value: [1.0, 1.0, 0.0, 0.0] }
+        mainColor:                        { value: [1.0, 1.0, 1.0, 1.0], target: albedo, linear: true, editor: { displayName: Albedo, type: color } }
+        albedoScale:                      { value: [1.0, 1.0, 1.0], target: albedoScaleAndCutoff.xyz }
+        alphaThreshold:                   { value: 0.5, target: albedoScaleAndCutoff.w, editor: { parent: USE_ALPHA_TEST, slide: true, range: [0, 1.0], step: 0.001 } }
+        occlusion:                        { value: 0.0, target: pbrParams.x, editor: { slide: true, range: [0, 1.0], step: 0.001 } }
+        roughness:                        { value: 0.5, target: pbrParams.y, editor: { slide: true, range: [0, 1.0], step: 0.001 } }
+        metallic:                         { value: 0.0, target: pbrParams.z, editor: { slide: true, range: [0, 1.0], step: 0.001 } }
+        specularIntensity:                { value: 0.5, target: pbrParams.w, editor: { slide: true, range: [0.0, 1.0], step: 0.001 } }
+        emissive:                         { value: [0.0, 0.0, 0.0, 1.0], linear: true, editor: { type: color } }
+        emissiveScale:                    { value: [1.0, 1.0, 1.0], target: emissiveScaleParam.xyz }
+        normalStrength:                   { value: 1.0, target: emissiveScaleParam.w, editor: { parent: USE_NORMAL_MAP, slide: true, range: [0, 5.0], step: 0.001 } }
+        anisotropyIntensity:              { value: 1.0, target: anisotropyParam.x, editor: { parent: IS_ANISOTROPY, slide : true, range : [0.0, 1.0] , step : 0.0001 } }
+        anisotropyRotation:               { value: 0.0, target: anisotropyParam.y, editor: { parent: IS_ANISOTROPY, slide : true, range : [0, 1.0] , step : 0.0001 } }
+        anisotropyMapResolutionHeight:    { value: 0.0, target: anisotropyParam.w, editor: { parent: FIX_ANISOTROPIC_ROTATION_MAP } }
+        addOnShadowBias:                  { value: 0.0, target: anisotropyParam.z }
+        mainTexture:                      { value: grey, target: albedoMap, editor: { displayName: AlbedoMap } }
+        normalMap:                        { value: normal }
+        pbrMap:                           { value: grey }
+        occlusionMap:                     { value: white }
+        emissiveMap:                      { value: grey }
+        anisotropyMap:                    { value: black, editor : { parent: IS_ANISOTROPY } }
+        anisotropyMapNearestFilter:       { value: black, editor : { parent: FIX_ANISOTROPIC_ROTATION_MAP } }
+    - &forward-add
+      vert: standard-vs
+      frag: standard-fs
+      phase: forward-add
+      propertyIndex: 0
+      embeddedMacros: { CC_FORWARD_ADD: true }
+      depthStencilState:
+        depthFunc: equal
+        depthTest: true
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: one
+          blendDst: one
+          blendSrcAlpha: zero
+          blendDstAlpha: one
+    - &shadow-caster
+      vert: shadow-caster-vs
+      frag: shadow-caster-fs
+      phase: shadow-caster
+      propertyIndex: 0
+      rasterizerState:
+        cullMode: front
+      properties:
+        tilingOffset:   { value: [1.0, 1.0, 0.0, 0.0] }
+        mainColor:      { value: [1.0, 1.0, 1.0, 1.0], target: albedo, editor: { displayName: Albedo, type: color } }
+        albedoScale:    { value: [1.0, 1.0, 1.0], target: albedoScaleAndCutoff.xyz }
+        alphaThreshold: { value: 0.5, target: albedoScaleAndCutoff.w, editor: { parent: USE_ALPHA_TEST } }
+        mainTexture:    { value: grey, target: albedoMap, editor: { displayName: AlbedoMap } }
+    - &reflect-map
+      vert: standard-vs
+      frag: reflect-map-fs
+      phase: reflect-map
+      propertyIndex: 0
+    - &planar-shadow
+      vert: planar-shadow-vs
+      frag: planar-shadow-fs
+      phase: planar-shadow
+      propertyIndex: 0
+      depthStencilState:
+        depthTest: true
+        depthWrite: false
+        stencilTestFront: true
+        stencilFuncFront: not_equal
+        stencilPassOpFront: replace
+        stencilRef: 0x80 # only use the leftmost bit
+        stencilReadMask: 0x80
+        stencilWriteMask: 0x80
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+    - &deferred
+      vert: standard-vs
+      frag: standard-fs
+      pass: gbuffer
+      phase: gbuffer
+      embeddedMacros: { CC_PIPELINE_TYPE: 1 }
+      propertyIndex: 0      
+    
+  - name: transparent
+    passes:
+    - vert: standard-vs
+      frag: standard-fs
+      embeddedMacros: { CC_FORCE_FORWARD_SHADING: true }
+      depthStencilState: &d1
+        depthTest: true
+        depthWrite: false
+      blendState: &b1
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      properties: *props
+    - *forward-add
+    - *shadow-caster
+    - *planar-shadow
+    - &deferred-forward
+      vert: standard-vs
+      frag: standard-fs
+      phase: deferred-forward
+      embeddedMacros: { CC_PIPELINE_TYPE: 0 }
+      propertyIndex: 0
+      depthStencilState: *d1
+      blendState: *b1
+}%
+
+
+
+CCProgram shared-ubos %{
+  uniform Constants {
+    vec4 tilingOffset;
+    vec4 albedo;
+    vec4 albedoScaleAndCutoff;
+    vec4 pbrParams;
+    vec4 emissive;
+    vec4 emissiveScaleParam;
+    vec4 anisotropyParam;
+  };
+}%
+
+CCProgram macro-remapping %{
+  // ui displayed macros
+  #pragma define-meta HAS_SECOND_UV
+  #pragma define-meta USE_TWOSIDE
+  #pragma define-meta IS_ANISOTROPY
+  #pragma define-meta USE_VERTEX_COLOR
+  #pragma define-meta FIX_ANISOTROPIC_ROTATION_MAP
+
+  #define CC_SURFACES_USE_SECOND_UV HAS_SECOND_UV
+  #define CC_SURFACES_USE_TWO_SIDED USE_TWOSIDE
+  #define CC_SURFACES_LIGHTING_ANISOTROPIC IS_ANISOTROPY
+  #define CC_SURFACES_USE_VERTEX_COLOR USE_VERTEX_COLOR
+
+  // depend on UI macros
+#if IS_ANISOTROPY || USE_NORMAL_MAP
+  #define CC_SURFACES_USE_TANGENT_SPACE 1
+#endif
+
+  // functionality for each effect
+  #define CC_SURFACES_LIGHTING_ANISOTROPIC_ENVCONVOLUTION_COUNT 31
+}%
+
+CCProgram surface-vertex %{
+  #define CC_SURFACES_VERTEX_MODIFY_SHADOW_BIAS
+  vec2 SurfacesVertexModifyShadowBias(in SurfacesStandardVertexIntermediate In, vec2 originShadowBias)
+  {
+    return originShadowBias + vec2(anisotropyParam.z, 0.0);
+  }
+
+
+  #define CC_SURFACES_VERTEX_MODIFY_WORLD_POS
+  vec3 SurfacesVertexModifyWorldPos(in SurfacesStandardVertexIntermediate In)
+  {
+    vec3 worldPos = In.worldPos;
+
+    return worldPos;
+  }
+
+  /*
+
+  #define CC_SURFACES_VERTEX_MODIFY_WORLD_NORMAL
+  vec3 SurfacesVertexModifyWorldNormal(in SurfacesStandardVertexIntermediate In)
+  {
+    vec3 worldNormal = In.worldNormal.xyz;
+    worldNormal.x += sin(cc_time.x * 3.0);
+    worldNormal.y += cos(cc_time.x * 3.0);
+  #if CC_SURFACES_USE_TWO_SIDED
+      worldNormal.xyz *= In.worldNormal.w;
+  #endif
+    return normalize(worldNormal);
+  }
+
+  // see <surfaces/default-functions/common-vs> for more overrided functions
+  #define CC_SURFACES_VERTEX_MODIFY_SHARED_DATA
+  void SurfacesVertexModifySharedData(inout SurfacesStandardVertexIntermediate In)
+  {
+  }
+*/
+
+  #define CC_SURFACES_VERTEX_MODIFY_UV
+  void SurfacesVertexModifyUV(inout SurfacesStandardVertexIntermediate In)
+  {
+    In.texCoord = In.texCoord * tilingOffset.xy + tilingOffset.zw;
+  #if CC_SURFACES_USE_SECOND_UV
+    In.texCoord1 = In.texCoord1 * tilingOffset.xy + tilingOffset.zw;
+  #endif
+  }
+}%
+
+CCProgram surface-fragment %{
+  #if USE_ALBEDO_MAP
+    uniform sampler2D albedoMap;
+    #pragma define-meta ALBEDO_UV options([v_uv, v_uv1])
+  #endif
+  #if USE_NORMAL_MAP
+    uniform sampler2D normalMap;
+    #pragma define-meta NORMAL_UV options([v_uv, v_uv1])
+  #endif
+  #pragma define-meta DEFAULT_UV options([v_uv, v_uv1])
+  #if USE_PBR_MAP
+    uniform sampler2D pbrMap;
+  #endif
+  #if USE_OCCLUSION_MAP
+    uniform sampler2D occlusionMap;
+  #endif
+  #if USE_EMISSIVE_MAP
+    uniform sampler2D emissiveMap;
+    #pragma define-meta EMISSIVE_UV options([v_uv, v_uv1])
+  #endif
+  #if IS_ANISOTROPY && USE_ANISOTROPY_MAP
+    uniform sampler2D anisotropyMap;
+    uniform sampler2D anisotropyMapNearestFilter;
+  #endif
+
+  #pragma define OCCLUSION_CHANNEL          r
+  #pragma define ROUGHNESS_CHANNEL          g
+  #pragma define METALLIC_CHANNEL           b
+  #pragma define SPECULAR_INTENSITY_CHANNEL a
+
+  #if USE_ALPHA_TEST
+    #pragma define-meta ALPHA_TEST_CHANNEL options([a, r])
+  #endif
+
+  #define CC_SURFACES_FRAGMENT_MODIFY_BASECOLOR_AND_TRANSPARENCY
+  uniform Position {    
+    vec4 boxPos0; vec4 boxPos1; vec4 boxPos2; vec4 boxPos3; vec4 boxPos4; vec4 boxPos5; vec4 boxPos6; vec4 boxPos7; vec4 boxPos8; vec4 boxPos9;
+    vec4 boxPos10; vec4 boxPos11; vec4 boxPos12; vec4 boxPos13; vec4 boxPos14; vec4 boxPos15; vec4 boxPos16; vec4 boxPos17; vec4 boxPos18; vec4 boxPos19;
+    vec4 boxPos20; vec4 boxPos21; vec4 boxPos22; vec4 boxPos23; vec4 boxPos24; vec4 boxPos25; vec4 boxPos26; vec4 boxPos27; vec4 boxPos28; vec4 boxPos29;
+    vec4 boxPos30; vec4 boxPos31; vec4 boxPos32; vec4 boxPos33; vec4 boxPos34; vec4 boxPos35; vec4 boxPos36; vec4 boxPos37; vec4 boxPos38; vec4 boxPos39;
+    vec4 boxPos40; vec4 boxPos41; vec4 boxPos42; vec4 boxPos43; vec4 boxPos44; vec4 boxPos45; vec4 boxPos46; vec4 boxPos47; vec4 boxPos48; vec4 boxPos49;
+    
+    vec4 boxSize0; vec4 boxSize1; vec4 boxSize2; vec4 boxSize3; vec4 boxSize4; vec4 boxSize5; vec4 boxSize6; vec4 boxSize7; vec4 boxSize8; vec4 boxSize9;
+    vec4 boxSize10; vec4 boxSize11; vec4 boxSize12; vec4 boxSize13; vec4 boxSize14; vec4 boxSize15; vec4 boxSize16; vec4 boxSize17; vec4 boxSize18; vec4 boxSize19;
+    vec4 boxSize20; vec4 boxSize21; vec4 boxSize22; vec4 boxSize23; vec4 boxSize24; vec4 boxSize25; vec4 boxSize26; vec4 boxSize27; vec4 boxSize28; vec4 boxSize29;
+    vec4 boxSize30; vec4 boxSize31; vec4 boxSize32; vec4 boxSize33; vec4 boxSize34; vec4 boxSize35; vec4 boxSize36; vec4 boxSize37; vec4 boxSize38; vec4 boxSize39;
+    vec4 boxSize40; vec4 boxSize41; vec4 boxSize42; vec4 boxSize43; vec4 boxSize44; vec4 boxSize45; vec4 boxSize46; vec4 boxSize47; vec4 boxSize48; vec4 boxSize49;
+
+    int maxSlot;
+  };
+  vec4 SurfacesFragmentModifyBaseColorAndTransparency()
+  {
+    vec4 baseColor = albedo;
+
+    #if USE_VERTEX_COLOR
+      baseColor.rgb *= SRGBToLinear(FSInput_vertexColor.rgb); // use linear
+      baseColor.a *= FSInput_vertexColor.a;
+    #endif
+
+    #if USE_ALBEDO_MAP
+      vec4 texColor = texture(albedoMap, ALBEDO_UV);
+      texColor.rgb = SRGBToLinear(texColor.rgb);
+      baseColor *= texColor;
+    #endif
+
+    #if USE_ALPHA_TEST
+      if (baseColor.ALPHA_TEST_CHANNEL < albedoScaleAndCutoff.w) discard;
+    #endif
+
+    // vec3 dir = FSInput_worldPos - boxPos.xyz;
+    // float x = abs(dir.x);
+    // float y = abs(dir.y);
+    // float z = abs(dir.z);
+    // if (x <= boxSize.x * 0.5 && z <= boxSize.z * 0.5) {
+    //   discard;
+    // }
+
+
+
+    const int MAXSLOT = 100;
+    for (int i = 0; i < MAXSLOT; i++) {
+      if( i >= maxSlot) {
+        break;
+      }
+      // vec4 p = p0;
+      // if (i == 1) { p = p1;} else if (i == 2) { p = p2;} else if (i == 3) { p = p3;} else if (i == 4) { p = p4;} else if (i == 5) { p = p5;} else if (i == 6) { p = p6;} else if (i == 7) { p = p7;} else if (i == 8) { p = p8;} else if (i == 9) { p = p9;} 
+      // else if (i == 10) { p = p10;} else if (i == 11) { p = p11;} else if (i == 12) { p = p12;} else if (i == 13) { p = p13;} else if (i == 14) { p = p14;} else if (i == 15) { p = p15;} else if (i == 16) { p = p16;} else if (i == 17) { p = p17;} else if (i == 18) { p = p18;} else if (i == 19) { p = p19;} 
+      // else if (i == 20) { p = p20;} else if (i == 21) { p = p21;} else if (i == 22) { p = p22;} else if (i == 23) { p = p23;} else if (i == 24) { p = p24;} else if (i == 25) { p = p25;} else if (i == 26) { p = p26;} else if (i == 27) { p = p27;} else if (i == 28) { p = p28;} else if (i == 29) { p = p29;} 
+      // else if (i == 30) { p = p30;} else if (i == 31) { p = p31;} else if (i == 32) { p = p32;} else if (i == 33) { p = p33;} else if (i == 34) { p = p34;} else if (i == 35) { p = p35;} else if (i == 36) { p = p36;} else if (i == 37) { p = p37;} else if (i == 38) { p = p38;} else if (i == 39) { p = p39;} 
+      // else if (i == 40) { p = p40;} else if (i == 41) { p = p41;} else if (i == 42) { p = p42;} else if (i == 43) { p = p43;} else if (i == 44) { p = p44;} else if (i == 45) { p = p45;} else if (i == 46) { p = p46;} else if (i == 47) { p = p47;} else if (i == 48) { p = p48;} else if (i == 49) { p = p49;}
+      // // Expand to 100
+      // else if (i == 50) { p = p50;} else if (i == 51) { p = p51;} else if (i == 52) { p = p52;} else if (i == 53) { p = p53;} else if (i == 54) { p = p54;} else if (i == 55) { p = p55;} else if (i == 56) { p = p56;} else if (i == 57) { p = p57;} else if (i == 58) { p = p58;} else if (i == 59) { p = p59;}
+      // else if (i == 60) { p = p60;} else if (i == 61) { p = p61;} else if (i == 62) { p = p62;} else if (i == 63) { p = p63;} else if (i == 64) { p = p64;} else if (i == 65) { p = p65;} else if (i == 66) { p = p66;} else if (i == 67) { p = p67;} else if (i == 68) { p = p68;} else if (i == 69) { p = p69;}
+      // else if (i == 70) { p = p70;} else if (i == 71) { p = p71;} else if (i == 72) { p = p72;} else if (i == 73) { p = p73;} else if (i == 74) { p = p74;} else if (i == 75) { p = p75;} else if (i == 76) { p = p76;} else if (i == 77) { p = p77;} else if (i == 78) { p = p78;} else if (i == 79) {p=  	p79;}
+      // else if (i == 80) { p = p80;} else if (i == 81) { p = p81;} else if (i == 82) { p = p82;} else if (i == 83) { p = p83;} else if (i == 84) { p = p84;} else if (i == 85) { p = p85;} else if (i == 86) { p = p86;} else if (i == 87) { p = p87;} else if (i == 88) { p = p88;} else if (i == 89) { p = p89;}
+      // else if (i == 90) { p = p90;} else if (i == 91) { p = p91;} else if (i == 92) { p = p92;} else if (i == 93) { p = p93;} else if (i == 94) { p = p94;} else if (i == 95) { p = p95;} else if (i == 96) { p = p96;} else if (i == 97) {p=  	p97;} else if (i == 98) {p=  	p98;} else if (i == 99) {p=  	p99;}
+      vec4 p = boxPos0;
+      vec4 boxSize = boxSize0;
+
+      if (i == 1) { p = boxPos1; boxSize = boxSize1; } else if (i == 2) { p = boxPos2; boxSize = boxSize2; } else if (i == 3) { p = boxPos3; boxSize = boxSize3; } else if (i == 4) { p = boxPos4; boxSize = boxSize4; } else if (i == 5) { p = boxPos5; boxSize = boxSize5; } else if (i == 6) { p = boxPos6; boxSize = boxSize6; } else if (i == 7) { p = boxPos7; boxSize = boxSize7; } else if (i == 8) { p = boxPos8; boxSize = boxSize8; } else if (i == 9) { p = boxPos9; boxSize = boxSize9; }
+      else if (i == 10) { p = boxPos10; boxSize = boxSize10;} else if (i == 11) { p = boxPos11; boxSize = boxSize11;} else if (i == 12) { p = boxPos12; boxSize = boxSize12;} else if (i == 13) { p = boxPos13; boxSize = boxSize13;} else if (i == 14) { p = boxPos14; boxSize = boxSize14;} else if (i == 15) { p = boxPos15; boxSize = boxSize15;} else if (i == 16) { p = boxPos16; boxSize = boxSize16;} else if (i == 17) { p = boxPos17; boxSize = boxSize17;} else if (i == 18) { p = boxPos18; boxSize = boxSize18;} else if (i == 19) { p = boxPos19;boxSize=boxSize19;}
+      else if (i == 20) { p = boxPos20;boxSize=boxSize20;} else if (i == 21) { p = boxPos21;boxSize=boxSize21;} else if (i == 22) { p = boxPos22;boxSize=boxSize22;} else if (i == 23) { p = boxPos23;boxSize=boxSize23;} else if (i == 24) { p = boxPos24;boxSize=boxSize24;} else if (i == 25) { p = boxPos25;boxSize=boxSize25;} else if (i == 26) { p = boxPos26;boxSize=boxSize26;} else if (i == 27) { p = boxPos27;boxSize=boxSize27;} else if (i == 28) { p = boxPos28;boxSize=boxSize28;} else if (i == 29) { p = boxPos29;boxSize=boxSize29;}
+      else if (i == 30) { p = boxPos30;boxSize=boxSize30;} else if (i == 31) { p = boxPos31;boxSize=boxSize31;} else if (i == 32) { p = boxPos32;boxSize=boxSize32;} else if (i == 33) { p = boxPos33;boxSize=boxSize33;} else if (i == 34) { p = boxPos34;boxSize=boxSize34;} else if (i == 35) { p = boxPos35;boxSize=boxSize35;} else if (i == 36) { p = boxPos36;boxSize=boxSize36;} else if (i == 37) { p = boxPos37;boxSize=boxSize37;} else if (i == 38) { p = boxPos38;boxSize=boxSize38;} else if (i == 39) {p=  	boxPos39; boxSize= boxSize39;}
+      else if (i == 40) { p = boxPos40; boxSize= boxSize40;} else if (i == 41) { p = boxPos41; boxSize= boxSize41;} else if (i == 42) { p = boxPos42; boxSize= boxSize42;} else if (i == 43) { p = boxPos43; boxSize= boxSize43;} else if (i == 44) { p = boxPos44; boxSize= boxSize44;} else if (i == 45) { p = boxPos45; boxSize= boxSize45;} else if (i == 46) { p = boxPos46; boxSize= boxSize46;} else if (i == 47) { p = boxPos47; boxSize= boxSize47;} else if (i == 48) { p = boxPos48; boxSize= boxSize48;} else if (i == 49) { p = boxPos49; boxSize= boxSize49;}
+
+      vec3 dir = FSInput_worldPos - p.xyz;
+      float x = abs(dir.x);
+      float y = abs(dir.y);
+      float z = abs(dir.z);
+      if (x <= boxSize.x * 0.5 && z <= boxSize.z * 0.5) {
+        discard;
+        break;
+      }
+    };
+ 
+    baseColor.rgb *= albedoScaleAndCutoff.xyz;
+    return baseColor;
+  }
+
+  #define CC_SURFACES_FRAGMENT_ALPHA_CLIP_ONLY
+  void SurfacesFragmentAlphaClipOnly()
+  {
+    #if USE_ALPHA_TEST
+      float alpha = albedo.ALPHA_TEST_CHANNEL;
+      #if USE_VERTEX_COLOR
+        alpha *= FSInput_vertexColor.a;
+      #endif
+      #if USE_ALBEDO_MAP
+        alpha = texture(albedoMap, ALBEDO_UV).ALPHA_TEST_CHANNEL;
+      #endif
+
+      if (alpha < albedoScaleAndCutoff.w) discard;
+    #endif
+  }
+
+  #define CC_SURFACES_FRAGMENT_MODIFY_WORLD_NORMAL
+  vec3 SurfacesFragmentModifyWorldNormal()
+  {
+    vec3 normal = FSInput_worldNormal;
+    #if USE_NORMAL_MAP
+      vec3 nmmp = texture(normalMap, NORMAL_UV).xyz - vec3(0.5);
+      normal = CalculateNormalFromTangentSpace(nmmp, emissiveScaleParam.w, normalize(normal.xyz), normalize(FSInput_worldTangent), FSInput_mirrorNormal);
+    #endif
+
+    return normalize(normal);
+  }
+
+  #define CC_SURFACES_FRAGMENT_MODIFY_ANISOTROPY_PARAMS
+  vec4 SurfacesFragmentModifyAnisotropyParams(out float isRotation)
+  {
+    float anisotropyRotation = anisotropyParam.y * PI;
+    float anisotropyShape = anisotropyParam.x;
+    #if IS_ANISOTROPY && USE_ANISOTROPY_MAP
+      // Rotation angle should disable trilinear filtering
+      vec4 tex = texture(anisotropyMap, DEFAULT_UV);
+      anisotropyRotation = fract(anisotropyRotation * 0.5 + tex.y) * PI2;
+      // less value is better for SP exported shape
+      anisotropyShape *= tex.x;
+    #endif
+
+    // fix rotation map seam line of black and white
+    #if FIX_ANISOTROPIC_ROTATION_MAP
+      #if IS_ANISOTROPY && USE_ANISOTROPY_MAP
+        vec4 reference = texture(anisotropyMapNearestFilter, DEFAULT_UV);
+        vec2 oneTap = vec2(0.0, 1.0 / anisotropyParam.w);
+        float threshold = 0.2;
+        // scan more taps for stable result
+        vec4 sample1 = texture(anisotropyMapNearestFilter, DEFAULT_UV + oneTap);
+        vec4 sample2 = texture(anisotropyMapNearestFilter, DEFAULT_UV - oneTap);
+        if (abs(sample1.y - reference.y) > threshold || abs(sample2.y - reference.y) > threshold) {
+            tex.y = reference.y;
+        }
+        anisotropyRotation = fract(anisotropyParam.y * PI * 0.5 + tex.y) * PI2;
+      #endif
+    #endif
+
+    isRotation = 1.0;
+    return vec4(anisotropyShape, anisotropyRotation, 0.0, 0.0);
+  }
+
+  #define CC_SURFACES_FRAGMENT_MODIFY_EMISSIVE
+  vec3 SurfacesFragmentModifyEmissive()
+  {
+    vec3 emissive = emissive.rgb;
+    #if USE_EMISSIVE_MAP
+      emissive = SRGBToLinear(texture(emissiveMap, EMISSIVE_UV).rgb);
+    #endif
+    return emissive * emissiveScaleParam.xyz;
+  }
+
+  #define CC_SURFACES_FRAGMENT_MODIFY_PBRPARAMS
+  vec4 SurfacesFragmentModifyPBRParams()
+  {
+    vec4 pbr = pbrParams;
+    pbr.x = 1.0;
+    #if USE_PBR_MAP
+      vec4 res = texture(pbrMap, DEFAULT_UV);
+      pbr.x = mix(1.0, res.OCCLUSION_CHANNEL, pbrParams.x);
+      pbr.y *= res.ROUGHNESS_CHANNEL;
+      pbr.z *= res.METALLIC_CHANNEL;
+      pbr.w *= res.SPECULAR_INTENSITY_CHANNEL;
+    #endif
+    #if USE_OCCLUSION_MAP
+      pbr.x = mix(1.0, texture(occlusionMap, DEFAULT_UV).OCCLUSION_CHANNEL, pbrParams.x);
+    #endif
+
+    return pbr;
+  }
+
+  /*
+  // definition of SurfacesMaterialData structure with corresponding shading-model
+  #include <surfaces/data-structures/standard>
+
+  //see <surfaces/default-functions/XXXX> for more overrided functions, XXXX is shading-model name
+  #define CC_SURFACES_FRAGMENT_MODIFY_SHARED_DATA
+  void SurfacesFragmentModifySharedData(inout SurfacesMaterialData surfaceData)
+  {
+  }
+
+  // see <lighting-models/default-functions/XXXX> for more overrided functions, XXXX is lighting-model name
+  #include <lighting-models/includes/common>
+  #define CC_SURFACES_LIGHTING_MODIFY_FINAL_RESULT
+  void SurfacesLightingModifyFinalResult(inout LightingResult result, in LightingIntermediateData lightingData, in SurfacesMaterialData surfaceData, in LightingMiscData miscData)
+  {
+  }*/
+}%
+
+CCProgram standard-vs %{
+  precision highp float;
+
+  // 1. surface internal macros, for technique usage or remapping some user (material) macros to surface internal macros
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/common-macros>
+
+  // 2. common include with corresponding shader stage, include before surface functions
+  #include <surfaces/includes/common-vs>
+
+  // 3. user surface functions that can use user (effect) parameters (ubo Constants)
+  //    see surfaces/default-functions/xxx.chunk
+  #include <shared-ubos>
+  #include <surface-vertex>
+
+  // 4. surface include with corresponding shader stage and shading-model (optional)
+  #include <surfaces/includes/standard-vs>
+
+  // 5. shader entry with corresponding shader stage and technique usage/type
+  #include <shading-entries/main-functions/render-to-scene/vs>
+}%
+
+
+CCProgram shadow-caster-vs %{
+  precision highp float;
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/render-to-shadowmap>
+  #include <surfaces/includes/common-vs>
+  #include <shared-ubos>
+  #include <surface-vertex>
+  #include <shading-entries/main-functions/render-to-shadowmap/vs>
+}%
+
+CCProgram planar-shadow-vs %{
+  precision highp float;
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/render-planar-shadow>
+  #include <surfaces/includes/common-vs>
+  #include <shared-ubos>
+  #include <surface-vertex>
+  #include <shading-entries/main-functions/render-planar-shadow/vs>
+}%
+
+
+CCProgram standard-fs %{
+  // shading-model : standard
+  // lighting-model : standard (isotropy / anisotropy pbr)
+  // shader stage : fs
+  // technique usage/type : render-to-scene
+
+  precision highp float;
+  // 1. surface internal macros, for technique usage or remapping some user (material) macros to surface internal macros
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/common-macros>
+
+  // 2. common include with corresponding shader stage, include before surface functions
+  #include <surfaces/includes/common-fs>
+
+  // 3. user surface functions that can use user (effect) parameters (ubo Constants)
+  //    see surfaces/default-functions/xxx.chunk
+  #include <shared-ubos>
+  #include <surface-fragment>
+
+  // 4. lighting-model (optional)
+  #include <lighting-models/includes/standard>
+
+  // 5. surface include with corresponding shader stage and shading-model (optional)
+  #include <surfaces/includes/standard-fs>
+
+  // 6. shader entry with corresponding shader stage and technique usage/type
+  #include <shading-entries/main-functions/render-to-scene/fs>
+}%
+
+CCProgram shadow-caster-fs %{
+  precision highp float;
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/render-to-shadowmap>
+  #include <surfaces/includes/common-fs>
+  #include <shared-ubos>
+  #include <surface-fragment>
+  #include <shading-entries/main-functions/render-to-shadowmap/fs>
+}%
+
+CCProgram planar-shadow-fs %{
+  precision highp float;
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/render-planar-shadow>
+  #include <surfaces/includes/common-fs>
+  #include <shared-ubos>
+  #include <surface-fragment>
+  #include <shading-entries/main-functions/render-planar-shadow/fs>
+}%
+
+CCProgram reflect-map-fs %{
+  precision highp float;
+  #include <macro-remapping>
+  #include <surfaces/effect-macros/common-macros>
+  #include <surfaces/includes/common-fs>
+  #include <shared-ubos>
+  #include <surface-fragment>
+  #include <lighting-models/includes/standard>
+  #include <surfaces/includes/standard-fs>
+  #include <shading-entries/main-functions/render-to-reflectmap/fs>
+}%
+

@@ -1,0 +1,12 @@
+{
+  "__version__": "1.0.0",
+  "channel_AppLovin": true,
+  "channel_IronSource": true,
+  "channel_Google": true,
+  "channel_Facebook": true,
+  "channel_Mintegral": true,
+  "channel_Unity": true,
+  "channel_TikTok": true,
+  "googleUrl": "https://play.google.com/store/apps/details?id=com.abi.crowd.escape",
+  "appleUrl": "https://apps.apple.com/us/app/bus-loopy/id6760693458"
+}

@@ -1,0 +1,216 @@
+// Copyright (c) 2017-2020 Xiamen Yaji Software Co., Ltd.
+CCEffect %{
+  techniques:
+  - passes:    
+    - vert: sprite-vs:vertOutline
+      frag: sprite-fs:fragOutline
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties: &p
+        outlineColor: { value: [0.0, 0.0, 0.0, 1.0], editor: { type: color } }
+        outlineWidth: { value: 1.0, editor: { slide: true, range: [0, 100], step: 0.01 } }
+        alphaThreshold: { value: 1.0, editor: { slide: true, range: [0, 1], step: 0.01 } }
+        alpha: { value: 1.0, editor: { slide: true, range: [0, 1], step: 0.01 } }
+
+        
+        brightness: { value: 0.0 , editor: { slide: true, range: [-1.0, 1.0], step: 0.001 }  }
+        contrast: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 }  }
+        saturation: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 } }
+        hue:        { value: 0.0, editor: { slide: true, range: [-180.0, 180.0], step: 1.0 } }    # độ
+
+        useOutline: { value: 1.0}
+        
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties: *p
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #if USE_LOCAL
+    #include <builtin/uniforms/cc-local>
+  #endif
+  #if SAMPLE_FROM_RT
+    #include <common/common-define>
+  #endif
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec4 color;
+  out vec2 uv0;
+
+  uniform Pivot {
+    vec4 pivot;
+    float scalePivot;
+  };
+
+  vec4 vert () {
+    vec4 pos = vec4(a_position, 1);
+
+    #if USE_LOCAL
+      pos = cc_matWorld * pos;
+    #endif
+
+    #if USE_PIXEL_ALIGNMENT
+      pos = cc_matView * pos;
+      pos.xyz = floor(pos.xyz);
+      pos = cc_matProj * pos;
+    #else
+      pos = cc_matViewProj * pos;
+    #endif
+    uv0 = a_texCoord;
+    #if SAMPLE_FROM_RT
+      CC_HANDLE_RT_SAMPLE_FLIP(uv0);
+    #endif
+    color = a_color;
+    return pos;
+  }
+
+  vec4 vertOutline () {
+    vec4 pos = vec4(a_position, 1);
+    #if USE_LOCAL
+      pos = cc_matWorld * pos;
+    #endif
+
+    #if USE_PIXEL_ALIGNMENT
+      pos = cc_matView * pos;
+      pos.xyz = floor(pos.xyz);
+      pos = cc_matProj * pos;
+    #else
+      pos = cc_matViewProj * pos;
+    #endif
+
+
+    uv0 = a_texCoord;
+    #if SAMPLE_FROM_RT
+      CC_HANDLE_RT_SAMPLE_FLIP(uv0);
+    #endif
+    color = a_color;
+
+
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+
+  uniform Constants {
+    vec4 outlineColor;
+    float outlineWidth;
+    float alphaThreshold;
+    float alpha;
+    float useOutline;
+    float brightness;
+    float contrast;
+    float saturation;
+    float hue;
+  };
+
+  in vec4 color;
+
+  in vec2 uv0;
+  #pragma builtin(local)
+  layout(set = 2, binding = 12) uniform sampler2D cc_spriteTexture;
+
+  vec3 AdjustSaturation(vec3 color, float sat) {
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(gray), color, sat);
+  }  
+  
+  vec3 hueShift(vec3 color, float hueDeg) {
+    float hue = radians(hueDeg); // convert deg → rad
+    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+    float cosAngle = cos(hue);
+    return vec3(color * cosAngle + cross(k, color) * sin(hue) + k * dot(k, color) * (1.0 - cosAngle));
+  }
+
+  vec4 frag () {
+    vec4 o = vec4(1, 1, 1, 1);
+    o *= texture(cc_spriteTexture, uv0);
+    if(o.a < alphaThreshold) discard;
+    o *= color;
+
+    o.rgb = hueShift(o.rgb, hue);
+    // Độ sáng
+    o.rgb += brightness;
+
+    // Độ tương phản
+    o.rgb = ((o.rgb - 0.5) * contrast + 0.5);
+
+    // Độ bão hòa
+    o.rgb = AdjustSaturation(o.rgb, saturation);
+
+
+    if(useOutline > 0.5) {
+      vec2 offsets[8];
+      offsets[0] = vec2(-1.0, -1.0);
+      offsets[1] = vec2( 0.0, -1.0);
+      offsets[2] = vec2( 1.0, -1.0);
+      offsets[3] = vec2(-1.0,  0.0);
+      offsets[4] = vec2( 1.0,  0.0);
+      offsets[5] = vec2(-1.0,  1.0);
+      offsets[6] = vec2( 0.0,  1.0);
+      offsets[7] = vec2( 1.0,  1.0);
+      for(int i = 0; i < 8; i++) {
+        vec2 offset = offsets[i] * outlineWidth * 0.001;
+        vec2 newUv = uv0 + offset;
+        vec4 oColor = texture(cc_spriteTexture, newUv);
+        if(oColor.a < alphaThreshold || newUv.x < 0.001 || newUv.x > 0.999 || newUv.y < 0.001 || newUv.y > 0.999) {
+          o = outlineColor;
+          o.a *= alpha;
+        }
+      }
+    }
+    return o;
+  }
+  
+  vec4 fragOutline () {
+    if(useOutline < 0.5) {
+      discard;
+    }
+    vec4 o = vec4(1, 1, 1, 1);
+    o *= texture(cc_spriteTexture, uv0);
+    if(o.a > alphaThreshold) discard;
+    vec2 offsets[8];
+    offsets[0] = vec2(-1.0, -1.0);
+    offsets[1] = vec2( 0.0, -1.0);
+    offsets[2] = vec2( 1.0, -1.0);
+    offsets[3] = vec2(-1.0,  0.0);
+    offsets[4] = vec2( 1.0,  0.0);
+    offsets[5] = vec2(-1.0,  1.0);
+    offsets[6] = vec2( 0.0,  1.0);
+    offsets[7] = vec2( 1.0,  1.0);
+    for(int i = 0; i < 8; i++) {
+      vec2 offset = offsets[i] * outlineWidth * 0.001;
+      vec4 oColor = texture(cc_spriteTexture, uv0 + offset);
+      if(oColor.a > alphaThreshold) {
+        o = outlineColor;
+      }
+    }
+    o.a *= alpha;
+    return o;
+  }
+}%

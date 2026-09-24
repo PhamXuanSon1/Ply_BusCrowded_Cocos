@@ -1,0 +1,128 @@
+{
+  "ver": "2.3.14",
+  "importer": "gltf",
+  "imported": true,
+  "uuid": "5c04373e-48ea-43c7-a71b-c85e69577f18",
+  "files": [],
+  "subMetas": {
+    "49927": {
+      "importer": "gltf-scene",
+      "uuid": "5c04373e-48ea-43c7-a71b-c85e69577f18@49927",
+      "displayName": "",
+      "id": "49927",
+      "name": "Bus.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "80c75": {
+      "importer": "gltf-mesh",
+      "uuid": "5c04373e-48ea-43c7-a71b-c85e69577f18@80c75",
+      "displayName": "",
+      "id": "80c75",
+      "name": "Mesh.001.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 1190
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "e2349": {
+      "importer": "gltf-mesh",
+      "uuid": "5c04373e-48ea-43c7-a71b-c85e69577f18@e2349",
+      "displayName": "",
+      "id": "e2349",
+      "name": "Mesh.mesh",
+      "userData": {
+        "gltfIndex": 1,
+        "triangleCount": 1462
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "7ed53": {
+      "importer": "gltf-mesh",
+      "uuid": "5c04373e-48ea-43c7-a71b-c85e69577f18@7ed53",
+      "displayName": "",
+      "id": "7ed53",
+      "name": "Scene-5.002.mesh",
+      "userData": {
+        "gltfIndex": 2,
+        "triangleCount": 67
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "legacyFbxImporter": false,
+    "allowMeshDataAccess": true,
+    "assetFinder": {
+      "meshes": [
+        "5c04373e-48ea-43c7-a71b-c85e69577f18@80c75",
+        "5c04373e-48ea-43c7-a71b-c85e69577f18@e2349",
+        "5c04373e-48ea-43c7-a71b-c85e69577f18@7ed53"
+      ],
+      "skeletons": [],
+      "textures": [],
+      "materials": [],
+      "scenes": [
+        "5c04373e-48ea-43c7-a71b-c85e69577f18@49927"
+      ]
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "meshOptimize": {
+      "enable": true,
+      "vertexCache": true,
+      "vertexFetch": true,
+      "overdraw": true
+    },
+    "meshCompress": {
+      "enable": true,
+      "compress": true,
+      "quantize": true
+    },
+    "dumpMaterials": false,
+    "materialDumpDir": "db://assets/8.Models/Vehices/Materials_Bus"
+  }
+}

@@ -1,0 +1,1 @@
+"use strict";module.exports={open_panel:"Game View",send_to_panel:"发送消息给 Game View",description:"游戏视图面板"};

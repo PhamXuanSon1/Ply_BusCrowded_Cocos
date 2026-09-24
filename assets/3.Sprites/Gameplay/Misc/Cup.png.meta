@@ -1,0 +1,143 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "ver": "1.0.22",
+      "importer": "texture",
+      "uuid": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5@6c48a",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {},
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "premultiplyAlpha": false,
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5",
+        "visible": false
+      },
+      "displayName": "Cup",
+      "id": "6c48a",
+      "name": "texture"
+    },
+    "f9941": {
+      "ver": "1.0.12",
+      "importer": "sprite-frame",
+      "uuid": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5@f9941",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {},
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "premultiplyAlpha": false,
+        "generateMipmap": false,
+        "anisotropy": 1,
+        "trimType": "auto",
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0,
+        "offsetY": -4.5,
+        "trimX": 35,
+        "trimY": 14,
+        "width": 277,
+        "height": 264,
+        "rawWidth": 347,
+        "rawHeight": 283,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5@6c48a",
+        "atlasUuid": "",
+        "mipfilter": "none",
+        "packable": true,
+        "vertices": {
+          "rawPosition": [
+            -138.5,
+            -132,
+            0,
+            138.5,
+            -132,
+            0,
+            -138.5,
+            132,
+            0,
+            138.5,
+            132,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            35,
+            269,
+            312,
+            269,
+            35,
+            5,
+            312,
+            5
+          ],
+          "nuv": [
+            0.10086455331412104,
+            0.0176678445229682,
+            0.899135446685879,
+            0.0176678445229682,
+            0.10086455331412104,
+            0.950530035335689,
+            0.899135446685879,
+            0.950530035335689
+          ],
+          "minPos": [
+            -138.5,
+            -132,
+            0
+          ],
+          "maxPos": [
+            138.5,
+            132,
+            0
+          ]
+        },
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0
+      },
+      "displayName": "Cup",
+      "id": "f9941",
+      "name": "spriteFrame"
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "redirect": "a77cb3d0-1272-4c4a-9e2f-479b35b5b5e5@6c48a",
+    "hasAlpha": true,
+    "fixAlphaTransparencyArtifacts": false
+  }
+}

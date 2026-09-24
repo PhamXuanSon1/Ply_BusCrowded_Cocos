@@ -1,0 +1,1 @@
+"use strict";module.exports={open_panel:"Box Arrange",send_to_panel:"发送消息给 Box Arrange",description:"箱子摆放关卡预览与物理模拟器"};

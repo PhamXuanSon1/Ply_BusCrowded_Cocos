@@ -1,0 +1,107 @@
+{
+  "ver": "2.3.14",
+  "importer": "gltf",
+  "imported": true,
+  "uuid": "60908534-4a56-47ab-9310-dfcfd8c240b9",
+  "files": [],
+  "subMetas": {
+    "551db": {
+      "importer": "gltf-mesh",
+      "uuid": "60908534-4a56-47ab-9310-dfcfd8c240b9@551db",
+      "displayName": "",
+      "id": "551db",
+      "name": "Mesh_0.001.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 1792
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "fdd9d": {
+      "importer": "gltf-skeleton",
+      "uuid": "60908534-4a56-47ab-9310-dfcfd8c240b9@fdd9d",
+      "displayName": "",
+      "id": "fdd9d",
+      "name": "Player.skeleton",
+      "userData": {
+        "gltfIndex": 0,
+        "jointsLength": 18
+      },
+      "ver": "1.0.1",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "a970a": {
+      "importer": "gltf-scene",
+      "uuid": "60908534-4a56-47ab-9310-dfcfd8c240b9@a970a",
+      "displayName": "",
+      "id": "a970a",
+      "name": "Human.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "legacyFbxImporter": false,
+    "allowMeshDataAccess": true,
+    "assetFinder": {
+      "meshes": [
+        "60908534-4a56-47ab-9310-dfcfd8c240b9@551db"
+      ],
+      "skeletons": [
+        "60908534-4a56-47ab-9310-dfcfd8c240b9@fdd9d"
+      ],
+      "textures": [],
+      "materials": [],
+      "scenes": [
+        "60908534-4a56-47ab-9310-dfcfd8c240b9@a970a"
+      ]
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.05,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.02
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.01
+        }
+      ]
+    },
+    "meshOptimize": {
+      "enable": true,
+      "vertexCache": true,
+      "vertexFetch": true,
+      "overdraw": true
+    },
+    "meshCompress": {
+      "enable": true,
+      "compress": true,
+      "quantize": true
+    }
+  }
+}

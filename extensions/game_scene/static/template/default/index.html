@@ -1,0 +1,24 @@
+<div id="app">
+    <div class="toolbar">
+        <label class="live-toggle">
+            <input id="live" type="checkbox">
+            Live
+        </label>
+        <div class="spacer"></div>
+    </div>
+
+    <div class="main">
+        <div class="canvas-wrap">
+            <canvas id="view-canvas"></canvas>
+            <div id="placeholder" class="placeholder">Enable Live to view the scene's cameras.</div>
+        </div>
+
+        <div id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>Cameras</h3>
+                <button id="btn-toggle-sidebar" title="Collapse/expand">◂</button>
+            </div>
+            <div id="camera-list" class="camera-list"></div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,57 @@
+<div id="app">
+    <div class="toolbar">
+        <button id="btn-regenerate" title="Re-run BoxCreator.init(): spawn + color boxes from LevelData">🔄 Regenerate</button>
+        <button id="btn-clear" title="Destroy every box, spawn nothing (panel starts empty for this reason)">🗑️ Clear</button>
+        <button id="btn-scatter" title="Re-run BoxCreator.onTouchStart(): random burst (key Z)">💥 Scatter</button>
+        <button id="btn-pause" title="Pause / resume the physics loop">⏸ Pause</button>
+        <button id="btn-log" title="Log BoxCreator.onKeyDown SPACE export to the devtools console">📋 Log JSON</button>
+        <label class="slider" title="Origin (0,0) used for exported box x/y (Log JSON / SPACE)">
+            Origin
+            <select id="export-origin">
+                <option value="top-left">Top Left</option>
+                <option value="top-center" selected>Top Center</option>
+                <option value="top-right">Top Right</option>
+                <option value="middle-left">Middle Left</option>
+                <option value="center">Center</option>
+                <option value="middle-right">Middle Right</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-center">Bottom Center</option>
+                <option value="bottom-right">Bottom Right</option>
+            </select>
+        </label>
+        <button id="btn-reset-view" title="Reset pan/zoom of the view (does not affect box scale)">🎯 Reset View <span id="zoom-val">100%</span></button>
+
+        <div class="spacer"></div>
+
+        <label class="slider">
+            Impulse <span id="impulse-val">15</span>
+            <input id="impulse" type="range" min="1" max="40" step="1" value="15">
+        </label>
+        <label class="slider">
+            Gravity <span id="gravity-val">0</span>
+            <input id="gravity" type="range" min="-3" max="3" step="0.1" value="1.2">
+        </label>
+        <label class="slider">
+            Size <span id="size-mul-val">1.2</span>
+            <input id="size-mul" type="range" min="0.5" max="2" step="0.05" value="1.2">
+        </label>
+    </div>
+
+    <div class="main">
+        <div class="canvas-wrap">
+            <canvas id="sim-canvas"></canvas>
+            <div class="canvas-hint">Drag an edge of the world to resize it &middot; drag empty space to pan &middot; scroll to zoom</div>
+        </div>
+
+        <div class="sidebar">
+            <h3>Stats</h3>
+            <div id="stats"></div>
+
+            <h3>Custom LevelData <span class="hint-inline">(JSON, optional)</span></h3>
+            <textarea id="custom-data" spellcheck="false"
+                placeholder='{ "sizes": [[0,0,0.4,1], ...], "sumBus": [88,2,2], "sumHuman": [[1,21,0,1], ...] }'></textarea>
+            <button id="btn-apply-data">Apply Data &amp; Regenerate</button>
+            <div class="hint">Leave empty to use the default LevelData copied from Data.ts. Fields you omit fall back to the default.</div>
+        </div>
+    </div>
+</div>

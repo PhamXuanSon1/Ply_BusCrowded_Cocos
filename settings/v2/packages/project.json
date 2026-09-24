@@ -1,0 +1,43 @@
+{
+  "__version__": "1.0.6",
+  "general": {
+    "designResolution": {
+      "width": 1080,
+      "height": 2350,
+      "fitWidth": false,
+      "fitHeight": true
+    },
+    "renderPipeline": "fd8ec536-a354-4a17-9c74-4f3883c378c8"
+  },
+  "custom_joint_texture_layouts": [
+    {
+      "name": "Texture - 0",
+      "textureLength": 72,
+      "contents": [
+        {
+          "skeleton": "60908534-4a56-47ab-9310-dfcfd8c240b9@fdd9d",
+          "clips": [
+            "54eba266-99f4-4d63-b382-8a3f8b8f87aa@1f586",
+            "590993fb-0482-4367-bfb0-7465007c1062@cf5ee",
+            "ac4c6c5a-f77b-4695-b7a3-0c8ad1669d6a@1e57b"
+          ]
+        }
+      ]
+    }
+  ],
+  "physics": {
+    "collisionGroups": [],
+    "collisionMatrix": {
+      "0": 9,
+      "1": 30,
+      "2": 2,
+      "3": 19,
+      "4": 10
+    },
+    "gravity": {
+      "y": 20
+    },
+    "allowSleep": false
+  },
+  "layer": []
+}

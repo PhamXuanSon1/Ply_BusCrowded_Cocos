@@ -1,0 +1,36 @@
+{
+  "__version__": "1.3.9",
+  "splash-setting": {
+    "totalTime": 500,
+    "logo": {
+      "image": "project://settings/Logo.png",
+      "type": "custom"
+    },
+    "background": {
+      "type": "custom",
+      "color": {
+        "x": 0.10980392156862745,
+        "y": 0.03529411764705882,
+        "z": 0.23921568627450981,
+        "w": 1
+      },
+      "image": "project://settings/Floor.png"
+    },
+    "displayRatio": 1
+  },
+  "textureCompressConfig": {
+    "userPreset": {
+      "03/m4ybQVOJ7SPOhieTjrl": {
+        "name": "PNG80",
+        "options": {
+          "web": {
+            "png": {
+              "quality": 80
+            }
+          }
+        }
+      },
+      "ccomDNGMFLnbX2Oq242qpY": null
+    }
+  }
+}

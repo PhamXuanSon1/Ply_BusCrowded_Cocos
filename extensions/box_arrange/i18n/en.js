@@ -1,0 +1,1 @@
+"use strict";module.exports={open_panel:"Box Arrange",send_to_panel:"Send message to Box Arrange",description:"Box arrange level preview & physics simulator"};

@@ -1,0 +1,21 @@
+module.exports = {
+    title: 'Playable Ads Builder',
+    description: '构建 web-mobile 后直接打包成多个广告渠道的 playable ad，无需再打开独立的 PlayableBuilder。',
+    options: {
+        appleUrl: 'iOS 商店链接',
+        googleUrl: 'Android 商店链接',
+        channels: '广告渠道',
+        selectedChannels: '已选渠道',
+        outputPath: '输出路径',
+        outputPathTip: '留空则输出到 ./<Name>，与 build/ 目录同级。游戏名称使用上方的 "Name" 字段。',
+        outputPathPlaceholder: '可选，绝对路径',
+        compressionType: '图片压缩',
+        compressionNone: '不压缩',
+        compressionLossless: '无损',
+        compressionLossy: '有损',
+        compressionQuality: '压缩质量',
+        compressionQualityTip: '图片压缩为“有损”时生效，建议 60-80',
+        audioCompressionEnabled: '压缩音频',
+        audioBitrate: '音频码率 (kbps)',
+    },
+};

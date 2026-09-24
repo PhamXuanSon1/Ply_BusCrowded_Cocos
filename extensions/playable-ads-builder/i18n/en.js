@@ -1,0 +1,21 @@
+module.exports = {
+    title: 'Playable Ads Builder',
+    description: 'Package the web-mobile build straight into playable ads for multiple ad networks, no separate PlayableBuilder app needed.',
+    options: {
+        appleUrl: 'iOS Store Link',
+        googleUrl: 'Android Store Link',
+        channels: 'Ad Channels',
+        selectedChannels: 'Selected Channels',
+        outputPath: 'Output Path',
+        outputPathTip: 'Leave empty to output to ./<Name>, sibling of the build/ folder. Game name uses the "Name" field above.',
+        outputPathPlaceholder: 'Optional, absolute path',
+        compressionType: 'Image Compression',
+        compressionNone: 'None',
+        compressionLossless: 'Lossless',
+        compressionLossy: 'Lossy',
+        compressionQuality: 'Compression Quality',
+        compressionQualityTip: 'Used when Image Compression = Lossy, recommended 60-80',
+        audioCompressionEnabled: 'Compress Audio',
+        audioBitrate: 'Audio Bitrate (kbps)',
+    },
+};

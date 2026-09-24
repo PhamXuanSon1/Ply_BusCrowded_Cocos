@@ -1,0 +1,206 @@
+// Copyright (c) 2017-2020 Xiamen Yaji Software Co., Ltd.
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: sprite-vs:vert
+      frag: sprite-fs:frag
+      depthStencilState:
+        depthTest: false
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties:
+        alpha: { value: 1.0, editor: { slide: true, range: [0, 1], step: 0.01 } }
+        brightness: { value: 0.0 , editor: { slide: true, range: [-1.0, 1.0], step: 0.001 }  }
+        contrast: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 }  }
+        saturation: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 } }
+        hue:        { value: 0.0, editor: { slide: true, range: [-180.0, 180.0], step: 1.0 } }    # độ
+        radius:        { value: 0.0, editor: { slide: true, range: [0, 1], step: 0.001, parent: MaskType} }    # độ
+}%
+
+CCProgram sprite-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #if USE_LOCAL
+    #include <builtin/uniforms/cc-local>
+  #endif
+  #if SAMPLE_FROM_RT
+    #include <common/common-define>
+  #endif
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  in vec4 a_color;
+
+  out vec4 color;
+  out vec2 uv0;
+  out vec3 wpos;
+
+  vec4 vert () {
+
+    wpos = a_position;
+
+    vec4 pos = vec4(a_position, 1);
+
+    #if USE_LOCAL
+      pos = cc_matWorld * pos;
+    #endif
+
+    #if USE_PIXEL_ALIGNMENT
+      pos = cc_matView * pos;
+      pos.xyz = floor(pos.xyz);
+      pos = cc_matProj * pos;
+    #else
+      pos = cc_matViewProj * pos;
+    #endif
+
+    uv0 = a_texCoord;
+
+    #if SAMPLE_FROM_RT
+      CC_HANDLE_RT_SAMPLE_FLIP(uv0);
+    #endif
+    color = a_color;
+
+    return pos;
+  }
+}%
+
+CCProgram sprite-fs %{
+  precision highp float;
+  #include <builtin/internal/embedded-alpha>
+  #include <builtin/internal/alpha-test>
+
+  const int Box = 0;
+  const int Circle = 1;
+  #pragma define-meta MaskType options([Box, Circle])
+
+  in vec4 color;
+  in vec3 wpos;
+
+  uniform Constant {
+    vec4 boxes[8];
+    vec4 screwBoxes[8];
+    vec4 box;
+    float alpha;
+    float brightness;
+    float contrast;
+    float saturation;
+    float hue;
+    float radius;
+  };
+
+  vec3 hueShift(vec3 color, float hueDeg) {
+    float hue = radians(hueDeg); // convert deg → rad
+    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+    float cosAngle = cos(hue);
+    return vec3(color * cosAngle + cross(k, color) * sin(hue) + k * dot(k, color) * (1.0 - cosAngle));
+  }
+
+  #if USE_TEXTURE
+    in vec2 uv0;
+    #pragma builtin(local)
+    layout(set = 2, binding = 12) uniform sampler2D cc_spriteTexture;
+  #endif
+
+  vec3 AdjustSaturation(vec3 color, float sat) {
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(gray), color, sat);
+  }
+
+  bool isInBox2D(vec4 box, vec3 pos) {
+
+      vec2 min = box.xy;
+      vec2 max = box.xy + vec2(box.zw);
+
+      return
+          all(greaterThanEqual(pos.xy, min)) &&
+          all(lessThanEqual(pos.xy, max));
+  }
+
+  bool isInRectUV(vec4 rect, vec2 uv) {
+
+    vec2 min = rect.xy;
+    vec2 max = rect.xy + rect.zw;
+
+    return
+        all(greaterThanEqual(uv, min)) &&
+        all(lessThanEqual(uv, max));
+  }
+
+  bool isInCircle(vec4 rect, vec3 uv, vec2 moved) {
+    vec2 min = rect.xy;
+    vec2 max = rect.xy + rect.zw;
+    vec2 root = (min + max) / 2.0 + moved;
+    float dis = distance(root, uv.xy);
+    return dis <= radius;
+  }
+
+  bool isInCircleUV(vec4 rect, vec2 uv) {
+
+    vec2 min = rect.xy;
+    vec2 max = rect.xy + rect.zw;
+    vec2 root = (min + max) / 2.0;
+    float dis = distance(root, uv);
+    return dis <= radius;
+  }
+
+  vec4 frag () {
+
+    if(MaskType == Box) {
+      for(int i = 0; i < 8; i++) {
+        if(isInRectUV(boxes[i], uv0)) {
+          discard;
+        }
+      }
+    } else if(MaskType == Circle) {
+
+      vec2 moved;
+      moved.x = box.x + box.z * uv0.x;
+      moved.y = box.y + box.w * (1.0 - uv0.y);
+      moved = wpos.xy - moved.xy;
+
+      for(int i = 0; i < 8; i++) {
+
+        if(boxes[i] == vec4(0.0, 0.0, 0.0, 0.0)) break;
+
+        if(isInCircle(boxes[i], wpos, moved)) {
+          discard;
+        }
+        // if(isInCircleUV(boxes[i], uv0)) {
+        //   discard;
+        // }
+      }
+    }
+
+    vec4 o = vec4(1, 1, 1, 1);
+
+    #if USE_TEXTURE
+      o *= CCSampleWithAlphaSeparated(cc_spriteTexture, uv0);
+      #if IS_GRAY
+        float gray  = 0.2126 * o.r + 0.7152 * o.g + 0.0722 * o.b;
+        gray *= 2.0;
+        // gray = clamp(gray, 0.0, 0.9);
+        o.r = o.g = o.b = gray;
+      #endif
+    #endif
+
+    o.rgb = hueShift(o.rgb, hue);
+    o *= color;
+    // Độ sáng
+    o.rgb += brightness;
+
+    // Độ tương phản
+    o.rgb = ((o.rgb - 0.5) * contrast + 0.5);
+
+    // Độ bão hòa
+    o.rgb = AdjustSaturation(o.rgb, saturation);
+    if(o.a < alpha) discard;
+
+    return o;
+  }
+}%
