@@ -1,4 +1,4 @@
-import { _decorator, Animation, CCInteger, CCObject, color, Color, Component, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
+import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
 import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
@@ -253,6 +253,30 @@ export class Game extends Component {
             n.children.forEach(walk);
         };
         walk(bus);
+        this.syncHighCam();
+    }
+
+    // HighCam phải trùng WCam (vị trí, xoay, ortho/fov, near/far) thì xe hướng dẫn mới hiện đúng
+    // chỗ — lệch là xe "bay" sang vị trí khác trên màn. Chép lại mỗi frame trong lúc intro để
+    // chỉnh/dời WCam (scene hoặc responsive) không phải sửa tay HighCam theo.
+    highCam: Camera = null;
+    syncHighCam() {
+        let w = ui?.wCamera;
+        if(!w) return;
+        if(!this.highCam) this.highCam = w.node.parent?.getChildByName("HighCam")?.getComponent(Camera);
+        let h = this.highCam;
+        if(!h) return;
+        h.node.setWorldPosition(w.node.worldPosition);
+        h.node.setWorldRotation(w.node.worldRotation);
+        h.projection = w.projection;
+        h.orthoHeight = w.orthoHeight;
+        h.fov = w.fov;
+        h.near = w.near;
+        h.far = w.far;
+    }
+
+    lateUpdate() {
+        if(this.introBus) this.syncHighCam();
     }
 
     endIntro() {
@@ -412,6 +436,14 @@ export class Game extends Component {
         this.brainText = this.brain.getComponentInChildren(Label);
         // this.setScore();
         this.linear = this.node.getChildByName("Linear");
+        // Batcher2D vẽ các RenderRoot2D theo siblingIndex CỤC BỘ. Scenes/UI (chứa "Black", material
+        // 2D.mtl có depthWrite, z=10) có index 1, Linear index 9 → Black vẽ trước, ghi depth phủ màn,
+        // road Graphics (depth test) vẽ sau bị loại hết → mất đường khi hiện màn đen. Đưa Linear lên
+        // index 0 để road vẽ trước Black, bị phủ mờ như phần còn lại.
+        if(!EDITOR_NOT_IN_PREVIEW) {
+            this.linear.setSiblingIndex(0);
+            director.root.batcher2D.sortScreens();
+        }
         if(!EDITOR_NOT_IN_PREVIEW) this.node.getChildByName("Test").active = false;
     }
 
