@@ -1,4 +1,4 @@
-import { _decorator, Animation, CCInteger, CCObject, color, Color, Component, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
+import { _decorator, Animation, CCInteger, CCObject, color, Color, Component, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
 import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
@@ -48,6 +48,8 @@ export class Game extends Component {
     humanSize: Vec2 = v2(47, 52);
     @property({ type: [CCInteger], tooltip: "Index các xe (trong buses) mà tay hướng dẫn chỉ vào lần lượt" })
     tapIndices: number[] = [105];
+    introBus: Node = null;
+    introLayers: Map<Node, number> = new Map();
     humanDis: Vec2 = v2(0.255, 0.255);
     disHuman: number = 0.016;
     disMul: Vec2 = v2(0.016, 0.016);
@@ -231,11 +233,33 @@ export class Game extends Component {
     
     initTaps() {
         this.taps = this.tapIndices.map(i => this.buses[i].node);
+        this.startIntro(this.taps[0]);
         // this.tut();
 
         setTimeout(() => {
             if(this.first) this.tut();
         }, this.tutTime * 1000);
+    }
+
+    // Intro: node World/Scenes/UI/Black (WCam) phủ tối cả màn hình; riêng xe hướng dẫn chuyển
+    // sang layer UI_3D để HighCam (priority cao hơn) vẽ đè lên Black → xe vẫn sáng.
+    startIntro(bus: Node) {
+        if(!bus) return;
+        this.introBus = bus;
+        this.introLayers.clear();
+        const walk = (n: Node) => {
+            this.introLayers.set(n, n.layer);
+            n.layer = Layers.Enum.UI_3D;
+            n.children.forEach(walk);
+        };
+        walk(bus);
+    }
+
+    endIntro() {
+        if(!this.introBus) return;
+        this.introLayers.forEach((layer, n) => { if(n.isValid) n.layer = layer; });
+        this.introLayers.clear();
+        this.introBus = null;
     }
 
     checkTut() {
@@ -294,6 +318,8 @@ export class Game extends Component {
     firstMove() {
         if(this.first) {
             this.first = false;
+            // Trả layer cho xe cùng lúc UI tắt Black (firstOffTime, sau 1s trong UI.firstMove)
+            setTimeout(() => this.endIntro(), 1000);
             sm.playBgMusic();
             ui.firstMove();
             AppLovinAnalytics.challengeStarted();
