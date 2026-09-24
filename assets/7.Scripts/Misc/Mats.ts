@@ -72,6 +72,7 @@ export class Mats extends Component {
             "metallic", 
             "specularIntensity", 
             "fixedLighting", 
+            "jamLighting", 
             "selfEmissive", 
             "emissive", 
             "emissiveScale", 
@@ -130,6 +131,8 @@ export class Mats extends Component {
     specularIntensity: number = 1;
     @property
     fixedLighting: boolean = false;  
+    @property({tooltip: "Chiếu sáng kiểu BusJamBase (dùng với metallic 1, roughness 1): màu ra gần đúng màu chọn"})
+    jamLighting: boolean = false;
 
 
     // emissive
@@ -233,6 +236,7 @@ export class Mats extends Component {
                     defines: {
                         USE_OUTLINE_PASS: this.useOutline,
                         FIXED_LIGHTING : this.fixedLighting,
+                        JAM_LIGHTING: this.jamLighting,
                         CLAMP_BRIGHTNESS : this.clamBrightness,
                         ENABLE_GLOW: this.enableGlow
                     }

@@ -607,6 +607,11 @@ CCProgram surface-fragment %{
   #define CC_SURFACES_FRAGMENT_MODIFY_SHARED_DATA
 
   #pragma define-meta FIXED_LIGHTING
+  // JAM_LIGHTING: cách chiếu sáng của PLY_BusJamBase (FIXED_LIGHTING bên đó). Đi cùng metallic 1,
+  // roughness 1: diffuse = baseColor*(1-metallic) = 0, màu chỉ còn phần phản xạ nhuộm baseColor,
+  // trải đều → xe/người ra gần đúng màu chọn trong Game.colors. Tách define riêng để không đổi
+  // các material FIXED_LIGHTING cũ (Bg, Pavement, Slot...).
+  #pragma define-meta JAM_LIGHTING
 
   #if FIXED_LIGHTING  
     // uniform EL {
@@ -645,6 +650,12 @@ CCProgram surface-fragment %{
       result.specularColorWithLighting = vec3(0.0); // Light
       result.diffuseColorWithLighting = surfaceData.baseColor.rgb;
       result.emissive = vec3(0.0); // Light
+    #endif
+
+    #if JAM_LIGHTING
+      result.directDiffuse = surfaceData.baseColor.rgb;
+      result.directGF = vec3(0.5);
+      result.shadow = 0.5;
     #endif
   }
 }%
