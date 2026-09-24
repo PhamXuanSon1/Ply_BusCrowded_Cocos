@@ -101,6 +101,8 @@ export class Game extends Component {
 
     @property({ tooltip: "Số người trong 1 row" })
     humanPerRow: number = 4;
+    @property({ tooltip: "Số row liên tiếp cùng màu khi xoay vòng màu (0 = giữ nguyên thứ tự LinearHumanData)" })
+    rowsPerColor: number = 4;
     @property({ tooltip: "Số slot cố định trên ring" })
     ringSlotCount: number = 12;
     // Đảo chiều xoay ring (updateRingSlots/getSlotAngle) — bật vì chiều hiện tại đang ngược.
@@ -373,7 +375,7 @@ export class Game extends Component {
             } else {
             this.onNative();
         }
-        this.data = LinearHumanData;
+        this.data = this.loopRowColors(LinearHumanData);
         this.initRing();
         this.humans.forEach(h => {
             // if(this.humanSize.x * this.humanSize.y > 40*40) 
@@ -715,6 +717,25 @@ export class Game extends Component {
     // Mỗi phần tử trong `data` (LinearHumanData) giờ đại diện màu của CẢ 1 ROW (humanPerRow
     // người), không còn phải gom các phần tử cùng màu liền kề như trước — data giữ nguyên giá
     // trị/độ dài, chỉ khi áp dụng (spawn) mới nhân lên humanPerRow người mỗi entry.
+    // Sắp lại thứ tự row: màu 0,1,...,n xoay vòng, mỗi màu rowsPerColor row liên tiếp. Giữ nguyên
+    // số row của từng màu (phải khớp số ghế xe màu đó) — màu nào hết thì bỏ qua, lượt sau vẫn
+    // đi tiếp các màu còn lại; phần lẻ (< rowsPerColor) của 1 màu được xếp nốt ở lượt cuối của nó.
+    loopRowColors(data: ColorType[]): ColorType[] {
+        if(this.rowsPerColor <= 0) return [...data];
+        let remain = new Map<ColorType, number>();
+        data.forEach(c => remain.set(c, (remain.get(c) || 0) + 1));
+        let order = Array.from(remain.keys()).sort((a, b) => a - b);
+        let result: ColorType[] = [];
+        while(result.length < data.length) {
+            order.forEach(c => {
+                let n = Math.min(this.rowsPerColor, remain.get(c));
+                for(let i = 0; i < n; i++) result.push(c);
+                remain.set(c, remain.get(c) - n);
+            });
+        }
+        return result;
+    }
+
     buildRowChunks(data: ColorType[]): ColorType[][] {
         return data.map(color => Array(this.humanPerRow).fill(color));
     }
