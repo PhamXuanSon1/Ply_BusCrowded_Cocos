@@ -130,10 +130,8 @@ export class Game extends Component {
     rowHighlightScale: number = 1.15;
     @property({ tooltip: "(Không dùng) Thời gian tween highlight — tween đang comment" })
     rowHighlightTime: number = 0.15;
-    @property({ tooltip: "Căn tâm row (không phải người đầu tiên) vào đúng path Line2DRing" })
-    ringRowCentered: boolean = true;
-    @property({ tooltip: "Dịch thêm row ra ngoài (+) / vào trong (-) so với path, đơn vị world" })
-    ringRowOffset: number = 0;
+    @property({ tooltip: "Căn tâm row (không phải người đầu tiên) vào đúng path — áp dụng cho cả ring lẫn 2 hàng chờ" })
+    rowCentered: boolean = true;
     
     buses: Bus[] = [];
     slots: Slot[] = [];
@@ -350,9 +348,10 @@ export class Game extends Component {
             this.initTaps();
             setTimeout(() => {
                 this.humans.forEach(h => {
-                    let st = h.am.getState("Human")
+                    let st = h.am?.getState("Human");
+                    if(!st) return;
                     st.speed = 1 + (Math.random() - 0.5) * 2 * 0.2;
-                    st.play();    
+                    st.play();
                 })
             }, 0);
             this.buses.forEach((b, i) => {
@@ -687,6 +686,7 @@ export class Game extends Component {
 
         let hs = row.node.children.map(c => c.getComponent(Human)).filter(h => h);
 
+        let n = colors.length;
         colors.forEach((c, i) => {
             let human = hs.pop();
             if(!human) {
@@ -695,7 +695,7 @@ export class Game extends Component {
                 human.node._objFlags = CCObject.Flags.DontSave;
             }
             human.init(c, v2(), 0);
-            human.node.position = offset.clone().multiplyScalar(i);
+            human.node.position = this.rowLocalPos(i, n, offset);
             this.humans.push(human);
             if(!this.colorHumans[human.color]) {
                 this.colorHumans[human.color] = [];
@@ -709,6 +709,14 @@ export class Game extends Component {
         hs.forEach(h => pm.despawn(h));
 
         return row;
+    }
+
+    // Vị trí local của người thứ i trong row n người, xếp theo `offset` mỗi bước. rowCentered:
+    // dời cả dãy lùi nửa chiều dài để TÂM row (không phải người 0) trùng gốc row — gốc row luôn
+    // đặt đúng trên path (ring/hàng chờ) nên người nằm giữa lòng đường thay vì dồn về 1 mép.
+    rowLocalPos(i: number, n: number, offset: Vec3): Vec3 {
+        let k = this.rowCentered ? i - (n - 1) * 0.5 : i;
+        return offset.clone().multiplyScalar(k);
     }
 
     // Lấy mẫu trên ringLine2D tại 1 ratio (0-1) bất kỳ dọc path, khép kín (qua 1 thì vòng lại từ
@@ -809,9 +817,17 @@ export class Game extends Component {
     }
 
 
+    // Tìm Line2D theo TÊN node dưới this.linear. Scene giờ có thêm Line2D không thuộc luồng
+    // gameplay (VD "Line2DExit" — đường đi ra chỉ để vẽ), nên không thể dựa vào thứ tự
+    // getComponentsInChildren nữa; tên không khớp thì trả null để caller fallback cách cũ.
+    findLineByName(name: string): Line2D {
+        let lines = this.linear.getComponentsInChildren(Line2D);
+        return lines.find(l => l.node.name == name) || null;
+    }
+
     getOrCreateSecondLine() {
         let lines = this.linear.getComponentsInChildren(Line2D);
-        let existing = lines.find(l => l != this.line2D);
+        let existing = this.findLineByName("Line2D2") || lines.find(l => l != this.line2D);
         if(existing) {
             this.line2D2 = existing;
             this.line2D2.node.active = true;
@@ -833,7 +849,7 @@ export class Game extends Component {
     // thành hình dạng ring mong muốn (đặt điểm cuối trùng/khớp điểm đầu để path khép kín mượt).
     getOrCreateRingLine() {
         let lines = this.linear.getComponentsInChildren(Line2D);
-        let existing = lines.find(l => l != this.line2D && l != this.line2D2);
+        let existing = this.findLineByName("Line2DRing") || lines.find(l => l != this.line2D && l != this.line2D2);
         if(existing) {
             this.ringLine2D = existing;
             this.ringLine2D.node.active = true;
@@ -897,24 +913,14 @@ export class Game extends Component {
             if(!row || row.moving) continue;
             let ratio = i / this.ringSlotCount + dir * this.ringProgress;
             let pos = this.ringPointAt(ratio);
-            let angle = this.computeFacingAngle(pos, this.ringOrigin.position);
-            // Người trong row xếp từ gốc row về phía tâm (+Y local) → lùi gốc row ra ngoài nửa
-            // chiều dài row để tâm row nằm đúng giữa path (khớp đường Line2DRing).
-            if(this.ringRowCentered) {
-                let n = row.humans.length || this.humanPerRow;
-                let shift = (n - 1) * 0.5 * this.humanDis.y + this.ringRowOffset;
-                let rad = toRadian(angle + 90);
-                pos.x -= Math.cos(rad) * shift;
-                pos.y -= Math.sin(rad) * shift;
-            }
             row.node.position = pos;
-            row.node.eulerAngles = v3(0, 0, angle);
+            row.node.eulerAngles = v3(0, 0, this.computeFacingAngle(pos, this.ringOrigin.position));
         }
     }
 
     initRing() {
         this.linear.active = true;
-        this.line2D = this.linear.getComponentInChildren(Line2D);
+        this.line2D = this.findLineByName("Line2D") || this.linear.getComponentInChildren(Line2D);
         // this.line2D.init();
         this.getOrCreateSecondLine();
         this.getOrCreateRingLine();
@@ -1163,7 +1169,7 @@ export class Game extends Component {
 
             tween(h.node)
             .to(duration, {
-                position: v3(0, i * this.humanDis.y, 0),
+                position: this.rowLocalPos(i, humans.length, v3(0, this.humanDis.y, 0)),
                 eulerAngles: v3(0, 0, targetAngle),
             })
             .call(() => {
