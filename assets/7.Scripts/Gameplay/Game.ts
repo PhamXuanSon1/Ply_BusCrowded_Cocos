@@ -1,4 +1,4 @@
-import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
+import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
 import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
@@ -16,6 +16,13 @@ import { findNearestColor, getPixel, readImagePixels, SandSimulationChunked, sav
 import { AStar, getNeightbors } from '../Misc/AStar';
 import { truncate } from './BoxCreator';
 import { Line2D } from '../../Misc/Line2D/Line2D';
+// Cách sắp thứ tự row người đi vào ring.
+export enum RowOrder {
+    Data = 0,       // giữ nguyên thứ tự LinearHumanData
+    LoopColors = 1, // màu 0..7 xoay vòng, mỗi màu rowsPerColor row
+    BusOrder = 2,   // theo thứ tự xe mở được (ObstacleData) — dễ thắng, luôn có cách giải
+}
+
 const { ccclass, property, executeInEditMode } = _decorator;
 
 export var gm: Game = null;
@@ -103,6 +110,10 @@ export class Game extends Component {
     humanPerRow: number = 4;
     @property({ tooltip: "Số row liên tiếp cùng màu khi xoay vòng màu (0 = giữ nguyên thứ tự LinearHumanData)" })
     rowsPerColor: number = 4;
+    @property({ type: Enum(RowOrder), tooltip: "Thứ tự row: Data = giữ nguyên data; LoopColors = màu 0..7 xoay vòng; BusOrder = người của xe đang thoát được tới trước (dễ thắng)" })
+    rowOrder: RowOrder = RowOrder.BusOrder;
+    @property({ tooltip: "BusOrder: số xe được xen kẽ row cùng lúc (càng lớn càng khó, không vượt số slot)" })
+    busOrderWindow: number = 3;
     @property({ tooltip: "Số slot cố định trên ring" })
     ringSlotCount: number = 12;
     // Đảo chiều xoay ring (updateRingSlots/getSlotAngle) — bật vì chiều hiện tại đang ngược.
@@ -375,7 +386,13 @@ export class Game extends Component {
             } else {
             this.onNative();
         }
-        this.data = this.loopRowColors(LinearHumanData);
+        // Dựng xe TRƯỚC ring: số row mỗi màu phải khớp đúng sức chứa xe màu đó (fitRowsToBuses).
+        this.initBuses();
+        this.totalChallenge = this.buses.length;
+        let rows = this.fitRowsToBuses(LinearHumanData);
+        if(this.rowOrder == RowOrder.LoopColors) rows = this.loopRowColors(rows);
+        else if(this.rowOrder == RowOrder.BusOrder) rows = this.orderRowsByBuses();
+        this.data = rows;
         this.initRing();
         this.humans.forEach(h => {
             // if(this.humanSize.x * this.humanSize.y > 40*40) 
@@ -387,9 +404,7 @@ export class Game extends Component {
             }
         });  
 
-        this.initBuses();
         // this.initBusesAvailable();
-        this.totalChallenge = this.buses.length;
 
         console.log("Total human", this.humans.length);
         console.log("Total buses", this.totalChallenge);
@@ -720,6 +735,78 @@ export class Game extends Component {
     // Sắp lại thứ tự row: màu 0,1,...,n xoay vòng, mỗi màu rowsPerColor row liên tiếp. Giữ nguyên
     // số row của từng màu (phải khớp số ghế xe màu đó) — màu nào hết thì bỏ qua, lượt sau vẫn
     // đi tiếp các màu còn lại; phần lẻ (< rowsPerColor) của 1 màu được xếp nốt ở lượt cuối của nó.
+    // Mỗi row = humanPerRow người, mỗi ghế xe (bus.seats) = humanPerRow người → số row màu c phải
+    // đúng bằng tổng số ghế các xe màu c. Thừa là người không có xe lên, cứ chạy vòng trên ring
+    // làm ring kín → thua chắc; thiếu là xe không bao giờ đầy → không thắng được. Cắt bớt row
+    // thừa (giữ thứ tự) và bù row thiếu vào cuối để data luôn khớp với xe đang có.
+    // Sắp row theo thứ tự xe MỞ ĐƯỢC: giả lập người chơi luôn chạm 1 xe không bị chặn
+    // (ObstacleData[i] = các xe đang chặn xe i), ưu tiên màu lâu chưa dùng cho đa dạng. Row của
+    // xe thứ k chỉ tới sau khi các xe trước nó đã có thể chạm → luôn có đường thắng. Tối đa
+    // busOrderWindow xe xen kẽ cùng lúc, mỗi lượt rowsPerColor row → vẫn thành từng khối màu.
+    orderRowsByBuses(): ColorType[] {
+        let n = this.buses.length;
+        let removed = new Set<number>();
+        let lastUsed = new Map<ColorType, number>();
+        let sequence: Bus[] = [];
+        for(let step = 0; step < n; step++) {
+            let free: number[] = [];
+            for(let i = 0; i < n; i++) {
+                if(removed.has(i)) continue;
+                if((ObstacleData[i] || []).every(j => removed.has(j) || j >= n)) free.push(i);
+            }
+            // Đồ thị lỗi (vòng chặn nhau) thì lấy đại xe còn lại để không kẹt.
+            if(free.length == 0) {
+                for(let i = 0; i < n; i++) if(!removed.has(i)) free.push(i);
+            }
+            free.sort((a, b) => (lastUsed.get(this.buses[a].color) ?? -1) - (lastUsed.get(this.buses[b].color) ?? -1) || a - b);
+            let pick = free[0];
+            removed.add(pick);
+            lastUsed.set(this.buses[pick].color, step);
+            sequence.push(this.buses[pick]);
+        }
+
+        let block = Math.max(1, this.rowsPerColor);
+        let window = Math.max(1, this.busOrderWindow);
+        let active: { color: ColorType, left: number }[] = [];
+        let result: ColorType[] = [];
+        let next = 0;
+        while(next < sequence.length || active.length > 0) {
+            while(active.length < window && next < sequence.length) {
+                let b = sequence[next++];
+                active.push({ color: b.color, left: b.seats.length });
+            }
+            let turn = [...active];
+            turn.forEach(a => {
+                let k = Math.min(block, a.left);
+                for(let i = 0; i < k; i++) result.push(a.color);
+                a.left -= k;
+            });
+            active = active.filter(a => a.left > 0);
+        }
+        return result;
+    }
+
+    fitRowsToBuses(data: ColorType[]): ColorType[] {
+        let need = new Map<ColorType, number>();
+        this.buses.forEach(b => need.set(b.color, (need.get(b.color) || 0) + b.seats.length));
+        let result: ColorType[] = [];
+        let used = new Map<ColorType, number>();
+        data.forEach(c => {
+            let u = used.get(c) || 0;
+            if(u < (need.get(c) || 0)) {
+                result.push(c);
+                used.set(c, u + 1);
+            }
+        });
+        need.forEach((n, c) => {
+            for(let i = used.get(c) || 0; i < n; i++) result.push(c);
+        });
+        if(result.length != data.length) {
+            console.warn("Human rows không khớp sức chứa xe:", data.length, "->", result.length);
+        }
+        return result;
+    }
+
     loopRowColors(data: ColorType[]): ColorType[] {
         if(this.rowsPerColor <= 0) return [...data];
         let remain = new Map<ColorType, number>();
@@ -1346,13 +1433,9 @@ export class Game extends Component {
                 data.push(b.color);
             }
         })
-        data = Ulis.shuffleArray(data);
-        let mData = [];
-        data.forEach(d => {
-            let arr = Array(4).fill(d);
-            mData.push(...arr);
-        })
-        return mData;
+        // 1 entry = 1 row = humanPerRow người = đúng 1 ghế, không nhân thêm (trước nhân 4 → thừa
+        // gấp 4 số người xe chở được).
+        return Ulis.shuffleArray(data);
     }
 
     removeHuman(human: Human) {
