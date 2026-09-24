@@ -37,24 +37,24 @@ export class HumanRow {
 @ccclass('Game')
 @executeInEditMode(true)
 export class Game extends Component {
-    @property
+    @property({ tooltip: "Số lần bấm xe để chuyển sang Store (native ép thành 9999)" })
     clicksToStore: number = 12;
     count: number = 0;
     progress: number = 0;
-    @property
+    @property({ tooltip: "Số giây chờ trước khi hiện tay hướng dẫn" })
     tutTime: number = 3;
-    @property(Animation)
+    @property({ type: Animation, tooltip: "Animation phát khi hết slot trống" })
     noSlot: Animation = null!
     humanSize: Vec2 = v2(47, 52);
-    @property([CCInteger])
+    @property({ type: [CCInteger], tooltip: "Index các xe (trong buses) mà tay hướng dẫn chỉ vào lần lượt" })
     tapIndices: number[] = [105];
     humanDis: Vec2 = v2(0.255, 0.255);
     disHuman: number = 0.016;
     disMul: Vec2 = v2(0.016, 0.016);
-    @property(SpriteFrame)
+    @property({ type: SpriteFrame, tooltip: "Sprite người màu đen (chế độ 2D)" })
     blackHuman: SpriteFrame = null!;
 
-    @property([Color])
+    @property({ type: [Color], tooltip: "Bảng màu gốc, index tương ứng ColorType — không đổi thứ tự" })
     colors: Color[] = [];
 
     boxMats: Material[] = [];
@@ -97,38 +97,38 @@ export class Game extends Component {
     // không cộng dồn qua từng chặng tween nhỏ, nên không thể bị trôi/lệch theo thời gian.
     ringProgress: number = 0;
 
-    @property
+    @property({ tooltip: "Số người trong 1 row" })
     humanPerRow: number = 4;
-    @property
+    @property({ tooltip: "Số slot cố định trên ring" })
     ringSlotCount: number = 12;
     // Đảo chiều xoay ring (updateRingSlots/getSlotAngle) — bật vì chiều hiện tại đang ngược.
-    @property
+    @property({ tooltip: "Đảo chiều xoay ring" })
     ringReverse: boolean = true;
     // Cộng thêm vào góc mỗi slot (getSlotAngle) để bù lệch 180° giữa slot 0 và vị trí chính
     // diện/feed thực tế — chỉnh số này trong Inspector nếu vẫn còn lệch.
-    @property
+    @property({ tooltip: "Góc (độ) cộng thêm vào góc mỗi slot để bù lệch" })
     ringAngleOffset: number = 180;
-    @property
+    @property({ tooltip: "(Không dùng) Bán kính ring cũ — ring giờ đi theo Line2D" })
     ringRadius: number = 3;
-    @property
+    @property({ tooltip: "Số giây để ring quay hết 1 vòng" })
     ringRevolveSeconds: number = 30;
-    @property
+    @property({ tooltip: "Góc bắt đầu vùng chính diện (người được lên xe)" })
     ringFrontAngleMin: number = 150;
-    @property
+    @property({ tooltip: "Góc kết thúc vùng chính diện (có thể cắt qua mốc 0°)" })
     ringFrontAngleMax: number = 210;
-    @property
+    @property({ tooltip: "Góc slot nhận row từ hàng chờ trái" })
     leftFeedAngle: number = 300;
-    @property
+    @property({ tooltip: "Góc slot nhận row từ hàng chờ phải" })
     rightFeedAngle: number = 60;
-    @property
+    @property({ tooltip: "Sai số (±độ) quanh leftFeedAngle để được feed" })
     leftFeedAngleTolerance: number = 20;
-    @property
+    @property({ tooltip: "Sai số (±độ) quanh rightFeedAngle để được feed" })
     rightFeedAngleTolerance: number = 20;
-    @property
+    @property({ tooltip: "Khoảng cách giữa các row trên hàng chờ (quyết định số row mỗi line)" })
     rowLineSpacing: number = 0.3;
-    @property
+    @property({ tooltip: "Scale row khi ở vùng chính diện / vùng feed" })
     rowHighlightScale: number = 1.15;
-    @property
+    @property({ tooltip: "(Không dùng) Thời gian tween highlight — tween đang comment" })
     rowHighlightTime: number = 0.15;
     
     buses: Bus[] = [];
@@ -161,18 +161,18 @@ export class Game extends Component {
     taps: Node[] = [];
     tutTween: Tween<any> = null!;
 
-    @property
+    @property({ tooltip: "Bật: người dùng sprite 2D; tắt: model 3D + shadow" })
     human2D: boolean = false;
-    @property
+    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space in BusData" })
     tool: boolean = false;
 
-    @property
+    @property({ tooltip: "Tick để xuất ảnh pixel người ra Human.png" })
     set savePNG(v: boolean) {
         savePNG(this.tData, this.humanSize.x, this.humanSize.y, "Human.png");
     }
     get savePNG() { return false; }
 
-    @property
+    @property({ tooltip: "Tick để in Level Data, Bus Data, Linear Human Data ra console" })
     set printBusData(v: boolean) {
         
         this.printData();
@@ -199,7 +199,7 @@ export class Game extends Component {
     get printBusData() { return false; }
 
 
-    @property
+    @property({ tooltip: "Tick để tính và in Obstacle Data ra console" })
     set printBlockData(v: boolean) {
         let ostacleData = [];
         this.buses.forEach(b => {
@@ -212,7 +212,7 @@ export class Game extends Component {
     }
     get printBlockData() { return false; }
 
-    @property
+    @property({ tooltip: "Tick để chạy A* và in Human Data + Cached paths (logic lưới cũ)" })
     set printCachedPath(v: boolean) {
         this.initPaths();       
     }
