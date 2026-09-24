@@ -96,7 +96,9 @@ export class Line2D extends Component {
 
     change() {
         this.setPointMap();
-        this.wposes = generateSmoothPoints(this.points.map(p => p.getWorldPosition()), this.smoothStep, this.tension);
+        // Inspector có thể gửi giá trị tạm (0, rỗng, âm) khi đang gõ smoothStep → ép tối thiểu 1.
+        let step = Math.max(1, Math.floor(this.smoothStep) || 1);
+        this.wposes = generateSmoothPoints(this.points.map(p => p.getWorldPosition()), step, this.tension);
         this.ratio = this.memRatio;
 
         this.lengths = [];
@@ -130,6 +132,13 @@ export class Line2D extends Component {
             pos4.push(mp);
         })
         
+        // Graphics sinh rất nhiều đỉnh cho mỗi điểm (round join/cap x lineWidth lớn) — smoothStep
+        // cao làm vượt giới hạn 65535 đỉnh của 1 buffer, Graphics tách buffer và custom material
+        // bị null descriptor (lỗi gpuDescriptors / updateBuffer). Chỉ giới hạn số điểm VẼ;
+        // wposes (dùng cho getPositionByRatio) vẫn giữ đủ độ mịn.
+        const maxDrawPoints = 200;
+        let drawPoses = sampleEvenly(this.lposes, maxDrawPoints);
+
         this.graphics.forEach(g => {
             let mat = g.material;
             if(!mat) return;
@@ -137,11 +146,12 @@ export class Line2D extends Component {
             mat.setProperty("maxTotalLength", this.maxTotalLength);
 
             g.clear();
-            g.moveTo(this.lposes[0].x, this.lposes[0].y);
-            for(let i = 1; i < this.lposes.length; i++) {
-                g.lineTo(this.lposes[i].x, this.lposes[i].y);
+            if(drawPoses.length < 2) return;
+            g.moveTo(drawPoses[0].x, drawPoses[0].y);
+            for(let i = 1; i < drawPoses.length; i++) {
+                g.lineTo(drawPoses[i].x, drawPoses[i].y);
             }
-            g.stroke();            
+            g.stroke();
         })
 
     }
@@ -193,6 +203,16 @@ export class Line2D extends Component {
             this.change();            
         }
     }
+}
+
+// Lấy đều `max` phần tử, luôn giữ phần tử đầu và cuối (path khép kín không bị hở ở mốc nối).
+function sampleEvenly<T>(arr: T[], max: number): T[] {
+    if(arr.length <= max) return arr;
+    const result: T[] = [];
+    for (let i = 0; i < max; i++) {
+        result.push(arr[Math.round(i * (arr.length - 1) / (max - 1))]);
+    }
+    return result;
 }
 
 function removeEvenly<T>(arr: T[], removeCount: number): T[] {
