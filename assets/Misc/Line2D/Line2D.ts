@@ -34,6 +34,13 @@ export class Line2D extends Component {
     smoothStep: number = 10;
     @property({group: {name: 'Adjust'}})
     tension: number = 0;
+    // Đường = 2 lớp Graphics: "Rim" (màu gờ, rộng = strokeWidth, z thấp) + "Face" (màu mặt đường,
+    // rộng = strokeWidth - 2*rimWidth, z cao). Mọi Face nằm trên mọi Rim (depth test) nên chỗ các
+    // đường giao/chồng nhau chỉ còn gờ ở biên ngoài của hợp — không còn vạch gờ cắt ngang.
+    @property({group: {name: 'Adjust'}, tooltip: "Bề dày gờ: Graphics con tên 'Face' vẽ hẹp hơn strokeWidth 2*rimWidth"})
+    rimWidth: number = 0;
+    @property({type: [Graphics], tooltip: "Graphics ngoài cây node cũng vẽ path này (lớp Face gom trong RoadFaces)"})
+    extraGraphics: Graphics[] = [];
 
     @property
     memRatio: number = 0;
@@ -64,7 +71,11 @@ export class Line2D extends Component {
             p.name = "" + i;
             if(!EDITOR_NOT_IN_PREVIEW) p.active = false;
         });
-        this.graphics = this.getComponentsInChildren(Graphics);
+        // Graphics vẽ path này = Graphics con + extraGraphics (nằm ngoài cây node, VD lớp "Face"
+        // gom chung trong node "RoadFaces" đứng SAU mọi Line2D để mặt đường của tất cả các đường
+        // được vẽ đè lên gờ của nhau — thứ tự vẽ 2D = thứ tự cây node, depth test không ăn).
+        // Node của extraGraphics phải cùng world transform với node Graphics con (lposes dùng chung).
+        this.graphics = [...this.getComponentsInChildren(Graphics), ...this.extraGraphics.filter(g => g)];
         this.setPointMap();
         let keys = this.paraMap.keys();
         this.arrayKeys = Array.from(keys);
@@ -166,8 +177,10 @@ export class Line2D extends Component {
         this.paraMap.set("strokeWidth", this.strokeWidth);
         this.paraMap.set("smoothStep", this.smoothStep);
         this.paraMap.set("tension", this.tension);
+        this.paraMap.set("rimWidth", this.rimWidth);
         this.graphics.forEach(g => {
-            g.lineWidth = this.strokeWidth;           
+            let isFace = g.node.name == "Face";
+            g.lineWidth = isFace ? Math.max(1, this.strokeWidth - 2 * this.rimWidth) : this.strokeWidth;
         })
     }
 
