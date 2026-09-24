@@ -27415,7 +27415,7 @@
         "__id__": 1265
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": null,
     "_lpos": {
@@ -28394,7 +28394,7 @@
         "__id__": 1289
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": null,
     "_lpos": {
@@ -29443,7 +29443,7 @@
       "__id__": 1310
     },
     "_children": [],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 1315
@@ -29567,7 +29567,7 @@
     "_prefab": null,
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 8.3,
+      "x": 0,
       "y": -12.5,
       "z": 0
     },
@@ -29580,9 +29580,9 @@
     },
     "_lscale": {
       "__type__": "cc.Vec3",
-      "x": 0.115,
-      "y": 0.115,
-      "z": 0.115
+      "x": 0.117,
+      "y": 0.117,
+      "z": 0.117
     },
     "_mobility": 0,
     "_layer": 33554432,
@@ -29606,7 +29606,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 1457,
+      "width": 1482.3,
       "height": 100
     },
     "_anchorPoint": {
@@ -29636,7 +29636,7 @@
       "b": 0,
       "a": 255
     },
-    "_string": "Best brain-training puzzle game",
+    "_string": "Only IQ >160 can escape Pink car",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 100,
@@ -29691,14 +29691,14 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "text": "Best brain-training puzzle game",
-    "debug": false,
-    "debugLanguage": "it",
+    "text": "Only IQ >160 can escape Pink car",
+    "debug": true,
+    "debugLanguage": "en",
     "originSize": {
       "__type__": "cc.Vec3",
-      "x": 0.115,
-      "y": 0.115,
-      "z": 0.115
+      "x": 0.117,
+      "y": 0.117,
+      "z": 0.117
     },
     "_id": "eebirsvo9C9KPuHdHFG1eJ"
   },
