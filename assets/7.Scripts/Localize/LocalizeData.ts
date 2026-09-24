@@ -246,5 +246,23 @@ export const LOCALIZE_DATA = {
         vi: "Trò chơi giải đố rèn luyện trí não tốt nhất"
     },
 
-
+'Only IQ >160 can escape Pink car': {
+    en: 'Only IQ >160 can escape Pink car',
+    es: 'Solo IQ >160 puede escapar del coche rosa',
+    pt: 'Só IQ >160 consegue escapar do carro rosa',
+    fr: 'Seul un QI >160 peut échapper à la voiture rose',
+    de: 'Nur IQ >160 kann dem pinken Auto entkommen',
+    it: 'Solo chi ha un QI >160 può sfuggire all’auto rosa',
+    ru: 'Только IQ >160 поможет сбежать от розовой машины',
+    tr: 'Sadece IQ >160 olanlar pembe arabadan kaçabilir',
+    ja: 'IQ160超えだけがピンクの車から脱出できる',
+    ko: 'IQ 160 이상만 핑크 자동차에서 탈출 가능',
+    'zh-cn': '只有IQ>160才能逃出粉色汽车',
+    'zh-tw': '只有IQ>160才能逃出粉紅色汽車',
+    th: 'เฉพาะ IQ >160 เท่านั้นที่หนีจากรถสีชมพูได้',
+    id: 'Hanya IQ >160 yang bisa kabur dari mobil pink',
+    ar: 'فقط من يملك IQ >160 يمكنه الهروب من السيارة الوردية',
+    hi: 'सिर्फ IQ >160 वाले ही गुलाबी कार से बच सकते हैं',
+    vi: 'Chỉ IQ >160 mới thoát được xe hồng',
+},
 };
