@@ -1,34 +1,48 @@
-import { _decorator, Component, Label, sys, UITransform, v3, Vec3 } from 'cc';
+import { _decorator, Component, Enum, Label, RichText, sys, TTFFont, UITransform, v3, Vec3 } from 'cc';
 import { LOCALIZE_DATA } from './LocalizeData';
-import { EDITOR } from 'cc/env';
+import { EDITOR_NOT_IN_PREVIEW } from 'cc/env';
 
-const { ccclass, property, executeInEditMode, requireComponent } = _decorator;
+const { ccclass, property, executeInEditMode } = _decorator;
 
 /** Ngôn ngữ gốc bạn gõ text trong editor, cũng là ngôn ngữ dùng khi không có bản dịch. */
 const SOURCE_LANGUAGE = 'en';
 
+/** Các ngôn ngữ có trong LocalizeData — hiện thành dropdown Debug Language trong Inspector. */
+const LANGUAGES = ['en', 'es', 'pt', 'fr', 'de', 'it', 'ru', 'tr', 'ja', 'ko', 'zh-cn', 'zh-tw', 'th', 'id', 'ar', 'hi', 'vi'];
+const LanguageEnum = Enum(LANGUAGES.reduce((o, l, i) => { o[l] = i; return o; }, {} as Record<string, number>));
+
 /**
- * Gắn component này lên node có sẵn Label - tự đọc text trên Label,
+ * Gắn component này lên node có sẵn Label hoặc RichText - tự đọc text trên Label,
  * detect ngôn ngữ máy user rồi thay bằng bản dịch tương ứng trong LocalizeData.
+ * Bản dịch có thể chứa tag RichText (VD <color=#ff1fa0>Pink</color>): node dùng RichText sẽ
+ * hiện màu, node dùng Label thường thì tag bị bỏ đi.
  */
 @ccclass('AutoLocalize')
 @executeInEditMode(true)
-@requireComponent(Label)
 export class AutoLocalize extends Component {
 
     @property
     text: string = '';
     @property({
-        tooltip: 'Ép ngôn ngữ dùng để test, VD: ja, ko, zh-cn, fr...\n'
+        tooltip: 'Bật để ép ngôn ngữ test — chọn ở dropdown Debug Language bên dưới'
     })
     debug: boolean = false;
+    // Lưu dạng chuỗi (giữ tương thích scene cũ), chỉnh qua dropdown debugLang bên dưới.
+    @property({ visible: false })
+    debugLanguage: string = '';
     @property({
         visible() {
             return this.debug
         },
-        type: String
+        type: LanguageEnum,
+        displayName: 'Debug Language',
+        tooltip: 'Chọn ngôn ngữ để xem thử — chữ đổi ngay trong editor'
     })
-    debugLanguage: string = '';
+    get debugLang() { return Math.max(0, LANGUAGES.indexOf(norm(this.debugLanguage))); }
+    set debugLang(v: number) {
+        this.debugLanguage = LANGUAGES[v] || SOURCE_LANGUAGE;
+        this.init();
+    }
     @property
 
     @property({
@@ -57,31 +71,50 @@ export class AutoLocalize extends Component {
         this.node.setScale(this.originSize);
 
         const label = this.getComponent(Label);
-        if (!label) {
+        let rich = this.getComponent(RichText);
+        if (!label && !rich) {
             return;
         }
 
-        const text = this.text.trim();        
-        label.string = text;
-        label.updateRenderData(true)
-        const uit = this.getComponent(UITransform);
-        const size = uit.contentSize.clone();
-
+        const text = this.text.trim();
         const entry = (LOCALIZE_DATA as Record<string, Record<string, string>>)[text];
-        if (!entry) {
-            return;
-        }
-
-        var language = detectLanguage();
-
+        let language = detectLanguage();
         if ( this.debug && this.debugLanguage.length > 0) {
             language = norm(this.debugLanguage);
         }
+        const translated = entry && (entry[language] || entry[baseOf(language)] || entry[SOURCE_LANGUAGE]);
 
-        const translated = entry[language] || entry[baseOf(language)] || entry[SOURCE_LANGUAGE];
+        // Bản dịch có tag màu mà node chỉ có Label → lúc chạy game tự đổi sang RichText (chép
+        // font/cỡ/màu/căn lề từ Label) để khỏi phải thay component tay trong scene.
+        if (!rich && !EDITOR_NOT_IN_PREVIEW && translated && stripTags(translated) != translated) {
+            rich = this.addComponent(RichText);
+            rich.font = label.font as TTFFont;
+            rich.useSystemFont = label.useSystemFont;
+            rich.fontFamily = label.fontFamily;
+            rich.fontSize = label.fontSize;
+            rich.lineHeight = label.lineHeight;
+            rich.fontColor = label.color.clone();
+            rich.horizontalAlign = label.horizontalAlign;
+            rich.verticalAlign = label.verticalAlign;
+            rich.cacheMode = label.cacheMode;
+            label.enabled = false;
+        }
+
+        const setText = (str: string) => {
+            if (rich) {
+                rich.string = escapeRichText(str);
+            } else {
+                label.string = stripTags(str);
+                label.updateRenderData(true);
+            }
+        };
+
+        setText(text);
+        const uit = this.getComponent(UITransform);
+        const size = uit.contentSize.clone();
+
         if (translated) {
-            label.string = translated;
-            label.updateRenderData(true)
+            setText(translated);
         }
         var nSize = uit.contentSize.clone();
 
@@ -121,6 +154,19 @@ function detectLanguage (): string {
     } catch (e) {
         return SOURCE_LANGUAGE;
     }
+}
+
+const RICH_TAG = /(<\/?(?:color|b|i|u|size|outline)[^>]*>)/;
+
+/** Bỏ tag RichText (<color=...>, </b>, ...) để hiện trên Label thường. */
+function stripTags (str: string): string {
+    return str.split(RICH_TAG).filter((_, i) => i % 2 == 0).join('');
+}
+
+/** Escape < > & trong phần chữ (giữ nguyên tag) — parser RichText hiểu sai "IQ >160" là tag. */
+function escapeRichText (str: string): string {
+    return str.split(RICH_TAG).map((part, i) => i % 2 == 1 ? part
+        : part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('');
 }
 
 function norm (code: string): string {

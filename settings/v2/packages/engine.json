@@ -39,7 +39,7 @@
             "_value": false
           },
           "rich-text": {
-            "_value": false
+            "_value": true
           },
           "mask": {
             "_value": true
@@ -202,7 +202,6 @@
           "audio",
           "base",
           "custom-pipeline",
-          "custom-pipeline-post-process",
           "gfx-webgl",
           "gfx-webgl2",
           "graphics",
@@ -210,6 +209,7 @@
           "particle",
           "primitive",
           "profiler",
+          "rich-text",
           "skeletal-animation",
           "tiled-map",
           "tween",
