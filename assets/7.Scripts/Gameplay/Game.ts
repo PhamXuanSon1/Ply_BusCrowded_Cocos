@@ -130,6 +130,10 @@ export class Game extends Component {
     rowHighlightScale: number = 1.15;
     @property({ tooltip: "(Không dùng) Thời gian tween highlight — tween đang comment" })
     rowHighlightTime: number = 0.15;
+    @property({ tooltip: "Căn tâm row (không phải người đầu tiên) vào đúng path Line2DRing" })
+    ringRowCentered: boolean = true;
+    @property({ tooltip: "Dịch thêm row ra ngoài (+) / vào trong (-) so với path, đơn vị world" })
+    ringRowOffset: number = 0;
     
     buses: Bus[] = [];
     slots: Slot[] = [];
@@ -893,8 +897,18 @@ export class Game extends Component {
             if(!row || row.moving) continue;
             let ratio = i / this.ringSlotCount + dir * this.ringProgress;
             let pos = this.ringPointAt(ratio);
+            let angle = this.computeFacingAngle(pos, this.ringOrigin.position);
+            // Người trong row xếp từ gốc row về phía tâm (+Y local) → lùi gốc row ra ngoài nửa
+            // chiều dài row để tâm row nằm đúng giữa path (khớp đường Line2DRing).
+            if(this.ringRowCentered) {
+                let n = row.humans.length || this.humanPerRow;
+                let shift = (n - 1) * 0.5 * this.humanDis.y + this.ringRowOffset;
+                let rad = toRadian(angle + 90);
+                pos.x -= Math.cos(rad) * shift;
+                pos.y -= Math.sin(rad) * shift;
+            }
             row.node.position = pos;
-            row.node.eulerAngles = v3(0, 0, this.computeFacingAngle(pos, this.ringOrigin.position));
+            row.node.eulerAngles = v3(0, 0, angle);
         }
     }
 
