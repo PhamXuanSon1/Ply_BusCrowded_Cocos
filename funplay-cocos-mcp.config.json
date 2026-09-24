@@ -1,0 +1,27 @@
+{
+  "host": "127.0.0.1",
+  "port": 20901,
+  "portMode": "project",
+  "clientConfigEntries": {
+    "claude_code": {
+      "serverName": "cocos-ply-buscrowd-503771",
+      "url": "http://127.0.0.1:20901/",
+      "configPath": "C:\\Users\\Admin\\.claude.json",
+      "projectIdentity": "503771d52cd2a486014b130d"
+    }
+  },
+  "toolProfile": "core",
+  "enabledTools": [],
+  "disabledTools": [],
+  "enabledToolCategories": [],
+  "disabledToolCategories": [],
+  "enableSessions": false,
+  "enableConsoleLogging": true,
+  "executeJavascriptSafetyChecks": true,
+  "autostart": true,
+  "maxInteractionLogEntries": 50,
+  "lastClientTargetId": "claude_code",
+  "activeToolProfileName": "",
+  "savedToolProfiles": [],
+  "language": "auto"
+}
