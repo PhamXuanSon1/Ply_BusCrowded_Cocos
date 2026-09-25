@@ -446,8 +446,8 @@
     "_enabled": true,
     "__prefab": null,
     "_clip": null,
-    "_loop": false,
-    "_playOnAwake": false,
+    "_loop": true,
+    "_playOnAwake": true,
     "_volume": 0.2,
     "_id": "11hL3Y02BKIaN1cO34H9IO"
   },
@@ -26820,6 +26820,12 @@
     "rowCentered": true,
     "human2D": false,
     "tool": false,
+    "introDuration": 2.5,
+    "spotPadding": 0.2,
+    "spotCorner": 0.25,
+    "spotLine": 0.08,
+    "spotGlow": 0.5,
+    "spotGlowAlpha": 0.6,
     "_id": "a1LryYXABJvZIL5ujU1F9u"
   },
   {
@@ -32833,9 +32839,9 @@
     "_prefab": null,
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 3,
-      "y": 4.9,
-      "z": 0
+      "x": 22.841,
+      "y": -53.486,
+      "z": -0.026
     },
     "_lrot": {
       "__type__": "cc.Quat",

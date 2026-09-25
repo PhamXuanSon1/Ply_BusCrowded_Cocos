@@ -1,4 +1,4 @@
-import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, v2, v3, Vec2, Vec3 } from 'cc';
+import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, misc, MeshRenderer, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, UIOpacity, UITransform, v2, view, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
 import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
@@ -56,7 +56,6 @@ export class Game extends Component {
     @property({ type: [CCInteger], tooltip: "Index các xe (trong buses) mà tay hướng dẫn chỉ vào lần lượt" })
     tapIndices: number[] = [105];
     introBus: Node = null;
-    introLayers: Map<Node, number> = new Map();
     humanDis: Vec2 = v2(0.255, 0.255);
     disHuman: number = 0.016;
     disMul: Vec2 = v2(0.016, 0.016);
@@ -254,24 +253,152 @@ export class Game extends Component {
         }, this.tutTime * 1000);
     }
 
-    // Intro: node World/Scenes/UI/Black (WCam) phủ tối cả màn hình; riêng xe hướng dẫn chuyển
-    // sang layer UI_3D để HighCam (priority cao hơn) vẽ đè lên Black → xe vẫn sáng.
+    // Intro: node World/Scenes/UI/Black (WCam) phủ tối cả màn hình; trong lúc intro ẩn sprite của
+    // Black, thay bằng nhóm con "IntroSpot": 1 khung vuông bo góc ôm xe hướng dẫn (trong khung
+    // trong suốt, viền trắng phát sáng) + 4 mảng tối phủ phần còn lại. Tự tắt sau introDuration giây.
     startIntro(bus: Node) {
         if(!bus) return;
         this.introBus = bus;
-        this.introLayers.clear();
-        const walk = (n: Node) => {
-            this.introLayers.set(n, n.layer);
-            n.layer = Layers.Enum.UI_3D;
-            n.children.forEach(walk);
-        };
-        walk(bus);
-        this.syncHighCam();
+        // Đợi 1 frame cho worldBounds của mesh cập nhật rồi mới đo vị trí/kích thước xe
+        this.scheduleOnce(() => this.createIntroSpot(), 0);
+        this.scheduleOnce(() => this.autoEndIntro(), this.introDuration);
     }
 
-    // HighCam phải trùng WCam (vị trí, xoay, ortho/fov, near/far) thì xe hướng dẫn mới hiện đúng
-    // chỗ — lệch là xe "bay" sang vị trí khác trên màn. Chép lại mỗi frame trong lúc intro để
-    // chỉnh/dời WCam (scene hoặc responsive) không phải sửa tay HighCam theo.
+    @property({ tooltip: "Số giây màn tối intro tự tắt (không cần bấm)" })
+    introDuration: number = 2.5;
+    @property({ tooltip: "Khoảng hở từ xe tới viền khung (tỉ lệ cạnh ngắn của xe)" })
+    spotPadding: number = 0.2;
+    @property({ tooltip: "Bo góc khung (tỉ lệ cạnh ngắn của xe)" })
+    spotCorner: number = 0.25;
+    @property({ tooltip: "Độ dày viền trắng (tỉ lệ cạnh ngắn của xe)" })
+    spotLine: number = 0.08;
+    @property({ tooltip: "Độ loang của quầng sáng trắng ngoài viền (tỉ lệ cạnh ngắn của xe)" })
+    spotGlow: number = 0.5;
+    @property({ tooltip: "Độ sáng quầng trắng ngoài viền (0-1)" })
+    spotGlowAlpha: number = 0.6;
+    introSpot: Node = null;
+
+    getIntroBlack(): Node {
+        return ui?.wCamera?.node.parent?.getChildByPath("Scenes/UI/Black");
+    }
+
+    // Texture khung: hx/hy = nửa kích thước lỗ, ex/ey = nửa kích thước cả texture (world units).
+    // Trong lỗ alpha 0 → viền trắng → quầng trắng mờ dần → mép texture tối đúng bằng Black (darkA)
+    // để nối liền với 4 mảng tối xung quanh.
+    makeSpotFrame(hx: number, hy: number, ex: number, ey: number, r: number, line: number, glow: number, darkA: number): SpriteFrame {
+        const ppu = 256 / (Math.max(ex, ey) * 2);
+        const tw = Math.ceil(ex * 2 * ppu), th = Math.ceil(ey * 2 * ppu);
+        const aa = 1 / ppu;
+        const data = new Uint8Array(tw * th * 4);
+        const smooth = (e0: number, e1: number, x: number) => {
+            let t = misc.clampf((x - e0) / (e1 - e0), 0, 1);
+            return t * t * (3 - 2 * t);
+        };
+        for(let y = 0; y < th; y++) {
+            for(let x = 0; x < tw; x++) {
+                let px = ((x + 0.5) / tw - 0.5) * ex * 2;
+                let py = ((y + 0.5) / th - 0.5) * ey * 2;
+                // khoảng cách có dấu tới hình chữ nhật bo góc
+                let qx = Math.abs(px) - (hx - r), qy = Math.abs(py) - (hy - r);
+                let sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+
+                let lineA = smooth(-aa, 0, sd) * (1 - smooth(line, line + aa, sd));
+                let gt = misc.clampf((sd - line) / glow, 0, 1);
+                let glowA = sd > line ? (1 - gt) * (1 - gt) * this.spotGlowAlpha : 0;
+                let g = Math.max(lineA, glowA);
+                let d = darkA * smooth(0, line + glow, sd);
+                let a = g + d * (1 - g);
+                let i = (y * tw + x) * 4;
+                let c = a > 0 ? Math.round(g / a * 255) : 255;
+                data[i] = data[i + 1] = data[i + 2] = c;
+                data[i + 3] = Math.round(a * 255);
+            }
+        }
+        const tex = new Texture2D();
+        tex.reset({ width: tw, height: th, format: Texture2D.PixelFormat.RGBA8888 });
+        tex.uploadData(data);
+        const sf = new SpriteFrame();
+        sf.texture = tex;
+        return sf;
+    }
+
+    createIntroSpot() {
+        const bus = this.introBus;
+        const black = this.getIntroBlack();
+        const cam = ui?.wCamera;
+        const blackSprite = black?.getComponent(Sprite);
+        if(!bus || !black || !cam || !blackSprite || !black.activeInHierarchy) return;
+
+        let min = v2(Infinity, Infinity), max = v2(-Infinity, -Infinity);
+        bus.getComponentsInChildren(MeshRenderer).forEach(mr => {
+            const b = mr.model?.worldBounds;
+            if(!b) return;
+            min.x = Math.min(min.x, b.center.x - b.halfExtents.x);
+            min.y = Math.min(min.y, b.center.y - b.halfExtents.y);
+            max.x = Math.max(max.x, b.center.x + b.halfExtents.x);
+            max.y = Math.max(max.y, b.center.y + b.halfExtents.y);
+        });
+        if(!isFinite(min.x)) return;
+        const cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2;
+        const s = Math.min(max.x - min.x, max.y - min.y);
+        const pad = s * this.spotPadding, line = s * this.spotLine, glow = s * this.spotGlow;
+        const hx = (max.x - min.x) / 2 + pad, hy = (max.y - min.y) / 2 + pad;
+        const ex = hx + line + glow, ey = hy + line + glow;
+
+        // Vùng cần phủ tối: rộng gấp đôi vùng camera nhìn thấy cho chắc
+        const vs = view.getVisibleSize();
+        const halfH = cam.orthoHeight * 2, halfW = halfH * vs.width / vs.height;
+        const cp = cam.node.worldPosition;
+        const L = Math.min(cp.x - halfW, cx - ex), R = Math.max(cp.x + halfW, cx + ex);
+        const B = Math.min(cp.y - halfH, cy - ey), T = Math.max(cp.y + halfH, cy + ey);
+
+        // root đặt ở gốc toạ độ world, scale 1 → toạ độ local của các mảng chính là toạ độ world
+        const root = new Node("IntroSpot");
+        root.layer = black.layer;
+        black.addChild(root);
+        root.setWorldPosition(0, 0, black.worldPosition.z);
+        root.setWorldRotation(Quat.IDENTITY);
+        root.setWorldScale(1, 1, 1);
+        const piece = (frame: SpriteFrame, col: Color, x0: number, y0: number, x1: number, y1: number) => {
+            if(x1 <= x0 || y1 <= y0) return;
+            const n = new Node("Piece");
+            n.layer = black.layer;
+            root.addChild(n);
+            n.addComponent(UITransform).setContentSize(x1 - x0, y1 - y0);
+            const sp = n.addComponent(Sprite);
+            sp.customMaterial = blackSprite.customMaterial;
+            sp.sizeMode = Sprite.SizeMode.CUSTOM;
+            sp.trim = false;
+            sp.spriteFrame = frame;
+            sp.color = col;
+            n.setPosition((x0 + x1) / 2, (y0 + y1) / 2, 0);
+        };
+        const dark = blackSprite.color;
+        piece(this.makeSpotFrame(hx, hy, ex, ey, s * this.spotCorner, line, glow, dark.a / 255),
+            Color.WHITE, cx - ex, cy - ey, cx + ex, cy + ey);
+        piece(blackSprite.spriteFrame, dark, L, cy + ey, R, T);
+        piece(blackSprite.spriteFrame, dark, L, B, R, cy - ey);
+        piece(blackSprite.spriteFrame, dark, L, cy - ey, cx - ex, cy + ey);
+        piece(blackSprite.spriteFrame, dark, cx + ex, cy - ey, R, cy + ey);
+        blackSprite.enabled = false;
+        this.introSpot = root;
+    }
+
+    autoEndIntro() {
+        if(!this.introBus) return;
+        const black = this.getIntroBlack();
+        if(!black || !black.active) { this.endIntro(); return; }
+        const op = black.getComponent(UIOpacity) ?? black.addComponent(UIOpacity);
+        tween(op).to(0.3, { opacity: 0 }).call(() => {
+            black.active = false;
+            op.opacity = 255;
+            this.endIntro();
+        }).start();
+    }
+
+    // HighCam vẽ layer UI_3D (tay hướng dẫn) đè lên màn tối — phải trùng WCam (vị trí, xoay,
+    // ortho/fov, near/far) thì tay mới chỉ đúng xe. Chép lại mỗi frame để chỉnh/dời WCam
+    // (scene hoặc responsive) không phải sửa tay HighCam theo.
     highCam: Camera = null;
     syncHighCam() {
         let w = ui?.wCamera;
@@ -289,14 +416,20 @@ export class Game extends Component {
     }
 
     lateUpdate() {
-        if(this.introBus) this.syncHighCam();
+        if(!EDITOR_NOT_IN_PREVIEW) this.syncHighCam();
     }
 
     endIntro() {
         if(!this.introBus) return;
-        this.introLayers.forEach((layer, n) => { if(n.isValid) n.layer = layer; });
-        this.introLayers.clear();
         this.introBus = null;
+        const root = this.introSpot;
+        this.introSpot = null;
+        if(root?.isValid) {
+            const blackSprite = root.parent?.getComponent(Sprite);
+            if(blackSprite) blackSprite.enabled = true;
+            root.children[0]?.getComponent(Sprite)?.spriteFrame?.texture?.destroy();
+            root.destroy();
+        }
     }
 
     checkTut() {
@@ -355,7 +488,7 @@ export class Game extends Component {
     firstMove() {
         if(this.first) {
             this.first = false;
-            // Trả layer cho xe cùng lúc UI tắt Black (firstOffTime, sau 1s trong UI.firstMove)
+            // Dọn vùng sáng intro cùng lúc UI tắt Black (firstOffTime, sau 1s trong UI.firstMove)
             setTimeout(() => this.endIntro(), 1000);
             sm.playBgMusic();
             ui.firstMove();
