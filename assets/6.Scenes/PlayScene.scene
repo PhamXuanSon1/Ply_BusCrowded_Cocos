@@ -26729,7 +26729,7 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "clicksToStore": 41,
+    "clicksToStore": 10,
     "tutTime": 0,
     "noSlot": {
       "__id__": 1251
@@ -27423,7 +27423,7 @@
         "__id__": 1265
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [],
     "_prefab": null,
     "_lpos": {
@@ -28402,7 +28402,7 @@
         "__id__": 1289
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [],
     "_prefab": null,
     "_lpos": {

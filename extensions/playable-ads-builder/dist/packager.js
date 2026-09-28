@@ -107,7 +107,6 @@ async function zipFolder(dir, zip) {
  * `product` = thông tin game (dùng cho luna.json của UnityPlayworks).
  */
 async function writeChannelSpecificFiles(channel, dir, htmlContent, zipJsContent, product) {
-    const htmlFileName = path.basename(dir) + '.html';
     switch (channel) {
         case channels_1.CHANNEL.UnityPlayworks: {
             const withStartGame = (html) => {
@@ -138,13 +137,11 @@ async function writeChannelSpecificFiles(channel, dir, htmlContent, zipJsContent
             break;
         }
         case channels_1.CHANNEL.Mintegral:
-            await fs.writeFile(path.join(dir, htmlFileName), htmlContent, 'utf-8');
-            break;
         case channels_1.CHANNEL.Facebook:
-            await fs.writeFile(path.join(dir, 'zip.js'), zipJsContent, 'utf-8');
-            await fs.writeFile(path.join(dir, 'index.html'), htmlContent, 'utf-8');
-            break;
         case channels_1.CHANNEL.Google:
+            // Ca 3 kenh nay dung chung 1 cach dong goi: zip.js la FILE RIENG (khop voi
+            // "<script src="zip.js">" da chen trong buildChannelHtml), khong nhung inline.
+            await fs.writeFile(path.join(dir, 'zip.js'), zipJsContent, 'utf-8');
             await fs.writeFile(path.join(dir, 'index.html'), htmlContent, 'utf-8');
             break;
         case channels_1.CHANNEL.TikTok:

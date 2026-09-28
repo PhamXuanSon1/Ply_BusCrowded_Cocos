@@ -85,7 +85,11 @@ async function buildChannelHtml(baseHtml, channel, product, zipJsContent) {
     if (apiText) {
         html = html.replace('</head>', () => `${apiText}</head>`);
     }
-    if (channel === channels_1.CHANNEL.Facebook) {
+    // Facebook/Google/Mintegral: dong goi zip.js thanh 1 FILE RIENG trong zip (khong nhung inline,
+    // khong chen "<base href>" gia) - giong het cach Facebook da lam tu truoc (packager.ts cung ghi
+    // zip.js cho ca 3 kenh nay, xem writeChannelSpecificFiles). Ly do: validator cua Google/Mintegral
+    // cung quet tinh file tim URL "ben ngoai" nhu Facebook truoc day va tu choi neu thay base href gia.
+    if (channel === channels_1.CHANNEL.Facebook || channel === channels_1.CHANNEL.Google || channel === channels_1.CHANNEL.Mintegral) {
         html = html.replace('<script src="src/polyfills.bundle.js" charset="utf-8"> </script>', () => '<script src="zip.js" type="text/javascript"></script>');
     }
     else {
