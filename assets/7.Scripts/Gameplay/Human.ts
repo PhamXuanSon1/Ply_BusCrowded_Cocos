@@ -78,8 +78,9 @@ export class Human extends PoolMember {
         if(!this.sprite) {
             this.sprite = this.getComponentInChildren(Sprite);
         }
+        let pi = gm.paletteIndex(cl);
         if(cl !== ColorType.Black) {
-            let c = gm.colors[cl].clone();
+            let c = gm.colors[pi].clone();
             let light = 0;
             let sat = 1.3;
             c.r += light;
@@ -98,7 +99,7 @@ export class Human extends PoolMember {
         this.meshes.forEach((mesh) => {
             let mats = mesh.sharedMaterials;
             mats.pop();
-            mats.push(gm.humanMats[cl]);
+            mats.push(gm.humanMats[pi]);
             mesh.sharedMaterials = mats;
         });
     }

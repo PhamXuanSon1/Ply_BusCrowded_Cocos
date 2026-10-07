@@ -120,7 +120,7 @@ export class Bus extends PoolMember {
         this.meshes.forEach((mesh) => {
             let mats = mesh.sharedMaterials;
             mats.pop();
-            mats.push(gm.boxMats[color]);
+            mats.push(gm.boxMats[gm.paletteIndex(color)]);
             mesh.sharedMaterials = mats;
         });
     }

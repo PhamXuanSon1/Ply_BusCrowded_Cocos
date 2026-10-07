@@ -1,7 +1,7 @@
 import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, misc, MeshRenderer, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, UIOpacity, UITransform, v2, view, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
-import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
+import { EDITOR, EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
 import { ui } from '../Manager/UI';
 import Ulis, { cEasing, nearestAngle, rect3, Rect3, splitSum } from '../Misc/Ulis';
 import { sm, SoundType } from '../Manager/SoundManager';
@@ -24,6 +24,10 @@ export enum RowOrder {
 }
 
 const { ccclass, property, executeInEditMode } = _decorator;
+
+// Nhóm thuộc tính trên Inspector (gập/mở được), giống BusJamBase
+const G_TOUCH = {name: "Touch", id: "touch", displayOrder: 2, style: "section"};
+const G_LOOK = {name: "Bus & Human", id: "look", displayOrder: 3, style: "section"};
 
 export var gm: Game = null;
 
@@ -53,6 +57,42 @@ export class Game extends Component {
     @property({ type: Animation, tooltip: "Animation phát khi hết slot trống" })
     noSlot: Animation = null!
     humanSize: Vec2 = v2(47, 52);
+    @property({group: G_TOUCH, range: [0.5, 3, 0.05], slide: true, tooltip: "Vùng bấm xe theo chiều NGANG thân xe (tỉ lệ so với bề rộng xe). 1 = đúng bằng xe, lớn hơn = dễ bấm trúng hơn"})
+    touchWidth: number = 1;
+    @property({group: G_TOUCH, range: [0.5, 2, 0.05], slide: true, tooltip: "Vùng bấm xe theo chiều DỌC thân xe (tỉ lệ so với chiều dài xe). 1 = đúng bằng xe"})
+    touchLength: number = 1;
+    @property({group: G_TOUCH, range: [1, 1.5, 0.05], slide: true, tooltip: "Nới khung va chạm giữa các xe (tỉ lệ so với size của Bus) cho khớp model thật. Đổi xong nhớ tick Save Bus Data để tính lại ObstacleData"})
+    hitScale: number = 1;
+    @property({group: G_LOOK, range: [1, 3, 0.1], slide: true, tooltip: "Giãn khoảng cách dọc giữa các bus (quanh tâm cụm bus). 1 = như BusData"})
+    set busGapY(v: number) {
+        let old = this._busGapY;
+        this._busGapY = v;
+        this.applyBusGapY(old);
+    }
+    get busGapY() { return this._busGapY; }
+    @property({visible: false})
+    _busGapY: number = 1;
+
+    // kéo busGapY trong editor: giãn lại y các xe đang có trên scene quanh tâm cụm theo tỉ lệ gap mới/cũ
+    // (giữ nguyên chỉnh tay), để Save Bus Data chia lại đúng gap. Lúc deserialize buses còn rỗng nên bỏ qua
+    applyBusGapY(old: number) {
+        if(!EDITOR_NOT_IN_PREVIEW || old == this._busGapY || !old) return;
+        let buses = this.buses.filter(b => b?.isValid);
+        if(!buses.length) return;
+        let ys = buses.map(b => b.node.position.y / this.disMul.y);
+        let cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+        buses.forEach(b => {
+            let p = b.node.position;
+            let y = cy + (p.y / this.disMul.y - cy) / old * this._busGapY;
+            b.node.setPosition(p.x, y * this.disMul.y, p.z);
+        });
+    }
+
+    // tâm theo trục y (đơn vị BusData) của cả cụm bus, dùng làm gốc khi giãn busGapY
+    busCenterY() {
+        let ys = BusData.map(d => d[3]);
+        return ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
+    }
     @property({ type: [CCInteger], tooltip: "Index các xe (trong buses) mà tay hướng dẫn chỉ vào lần lượt" })
     tapIndices: number[] = [105];
     introBus: Node = null;
@@ -179,7 +219,7 @@ export class Game extends Component {
 
     @property({ tooltip: "Bật: người dùng sprite 2D; tắt: model 3D + shadow" })
     human2D: boolean = false;
-    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space in BusData" })
+    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space lưu BusData" })
     tool: boolean = false;
 
     @property({ tooltip: "Tick để xuất ảnh pixel người ra Human.png" })
@@ -188,51 +228,87 @@ export class Game extends Component {
     }
     get savePNG() { return false; }
 
-    @property({ tooltip: "Tick để in Level Data, Bus Data, Linear Human Data ra console" })
-    set printBusData(v: boolean) {
-        
-        this.printData();
-        let data = [];
-        let buses = this.bus.getComponentsInChildren(Bus);
-        buses.forEach((bus) => {
-            let type = bus.type - PoolType.Bus;
-            let iColor = bus.dColor;
+    @property({ tooltip: "Tick để lưu xe trên scene (vị trí, góc, màu, kiểu xe) vào Data.ts — tự tính lại Obstacle Data + Linear Human Data, dựng lại xe và cập nhật ngay" })
+    set saveBusData(v: boolean) {
+        this.saveBuses();
+    }
+    get saveBusData() { return false; }
+
+    // Gộp Print Bus Data + Print Block Data: đọc xe trên scene → BusData, dựng lại xe từ data
+    // (spawn mới theo `type` nên đổi kiểu xe trong Inspector cũng ăn), tính ObstacleData +
+    // LinearHumanData từ xe vừa dựng, rồi ghi đè 3 mảng đó trong Data.ts. Mảng import được sửa
+    // tại chỗ nên scene dùng data mới luôn, không cần chờ compile lại. Ngoài editor chỉ in ra console.
+    async saveBuses() {
+        // y trên scene đã giãn busGapY quanh tâm cụm (tâm không đổi khi giãn) -> chia lại để BusData là bản gốc
+        let sceneBuses = this.bus.getComponentsInChildren(Bus);
+        let ys = sceneBuses.map(b => b.node.position.y / this.disMul.y);
+        let cy = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
+        let busData = sceneBuses.map(bus => {
             let x = bus.node.position.x / this.disMul.x;
-            let y = bus.node.position.y / this.disMul.y;
-            let angle = bus.node.eulerAngles.z;
-            data.push([type, iColor, truncate(x, 3), truncate(y, 3), truncate(angle, 3)]);
-        })
+            let y = cy + (bus.node.position.y / this.disMul.y - cy) / this.busGapY;
+            return [bus.type - PoolType.Bus, bus.dColor, truncate(x, 3), truncate(y, 3), truncate(bus.node.eulerAngles.z, 3)];
+        });
+        BusData.length = 0;
+        BusData.push(...busData);
 
-        console.log("Bus Data");        
-        console.log(JSON.stringify(data));
+        if(EDITOR) {
+            // Xoá hết xe cũ rồi dựng lại từ BusData — xe đổi `type` sẽ được spawn đúng prefab mới.
+            this.bus.getComponentsInChildren(Bus).forEach(b => {
+                b.node.removeFromParent();
+                b.node.destroy();
+            });
+            this.initBuses();
+        } else {
+            // Preview (tool mode, Space): không dựng lại giữa game, chỉ tính từ xe hiện có.
+            this.buses = this.bus.getComponentsInChildren(Bus);
+        }
 
+        let obstacleData = this.buses.map(b => {
+            b.obstascles = [];
+            this.onBox(b, true);
+            return b.obstascles.map(c => this.buses.indexOf(c.getComponent(Bus)));
+        });
+        ObstacleData.length = 0;
+        ObstacleData.push(...obstacleData);
 
-        // Mỗi phần tử đã là 1 row (không flatten nữa) — mỗi row sẽ thành humanPerRow người khi áp dụng.
-        let hm = this.getHumanDataFromBuses();
-        console.log("Linear Human Data");
-        console.log(JSON.stringify(hm));        
+        let humanData = this.getHumanDataFromBuses();
+        LinearHumanData.length = 0;
+        LinearHumanData.push(...humanData);
+
+        if(!EDITOR) {
+            console.log("Bus Data");
+            console.log(JSON.stringify(BusData));
+            console.log("Obstacle Data");
+            console.log(JSON.stringify(ObstacleData));
+            console.log("Linear Human Data");
+            console.log(JSON.stringify(LinearHumanData));
+            return;
+        }
+        await this.writeDataFile({ BusData, ObstacleData, LinearHumanData });
     }
-    get printBusData() { return false; }
 
-
-    @property({ tooltip: "Tick để tính và in Obstacle Data ra console" })
-    set printBlockData(v: boolean) {
-        let ostacleData = [];
-        this.buses.forEach(b => {
-            this.onBox(b);
-            ostacleData.push(b.obstascles.map(c => this.buses.indexOf(c.getComponent(Bus))));
-        })
-        console.log("Obstacle Data");
-        
-        console.log(JSON.stringify(ostacleData));        
+    // Ghi đè các dòng `export const <tên> = [...]` trong Data.ts (mỗi mảng nằm trên 1 dòng).
+    async writeDataFile(values: { [name: string]: any[] }) {
+        const url = "db://assets/7.Scripts/Gameplay/Data.ts";
+        const Editor = (globalThis as any).Editor;
+        const fs = (globalThis as any).require?.("fs");
+        if(!Editor || !fs) {
+            console.error("Save Bus Data: không truy cập được Editor/fs để ghi Data.ts");
+            return;
+        }
+        const path: string = await Editor.Message.request("asset-db", "query-path", url);
+        let text: string = fs.readFileSync(path, "utf8");
+        for(let name in values) {
+            const reg = new RegExp("(export const " + name + "\\s*=\\s*).*$", "m");
+            if(!reg.test(text)) {
+                console.error("Save Bus Data: không tìm thấy " + name + " trong Data.ts");
+                return;
+            }
+            text = text.replace(reg, (_, head) => head + JSON.stringify(values[name]) + " ");
+        }
+        await Editor.Message.request("asset-db", "save-asset", url, text);
+        console.log("Save Bus Data: đã lưu " + BusData.length + " xe vào Data.ts");
     }
-    get printBlockData() { return false; }
-
-    @property({ tooltip: "Tick để chạy A* và in Human Data + Cached paths (logic lưới cũ)" })
-    set printCachedPath(v: boolean) {
-        this.initPaths();       
-    }
-    get printCachedPath() { return false; }
 
     onMatChange() {
         let mats = this.mat.getComponentsInChildren(Mats);
@@ -597,6 +673,20 @@ export class Game extends Component {
         if(!EDITOR_NOT_IN_PREVIEW) this.node.getChildByName("Test").active = false;
     }
 
+    // Data (BusData/LinearHumanData) có thể chứa màu nằm ngoài bảng `colors`/mats của scene (VD
+    // đổi bảng màu ít ô hơn) → gm.colors[cl] undefined làm crash. Trả về index hợp lệ (vòng lại
+    // theo số màu đang có) và cảnh báo 1 lần để biết mà sửa data/bảng màu.
+    warnedColors: Set<number> = new Set();
+    paletteIndex(cl: ColorType): number {
+        let n = Math.min(this.colors.length, this.boxMats.length || Infinity, this.humanMats.length || Infinity);
+        if(n <= 0 || (cl >= 0 && cl < n)) return cl;
+        if(!this.warnedColors.has(cl)) {
+            this.warnedColors.add(cl);
+            console.warn(`Màu ${cl} (${ColorType[cl]}) không có trong bảng màu (${n} màu) → tạm dùng màu ${cl % n}`);
+        }
+        return ((cl % n) + n) % n;
+    }
+
     chosenColors: Color[] = [];
     initSand() {
 
@@ -725,6 +815,7 @@ export class Game extends Component {
         let typeBuses: Bus[][] = [];
         let max = 999;
         let data = BusData.slice(0, max);
+        let cy = this.busCenterY();
         data.forEach((data, i) => {
             let type = data[0] + PoolType.Bus;
             let iColor = data[1];
@@ -732,7 +823,7 @@ export class Game extends Component {
             //     iColor = ColorType.LightYellow;
             // }
             let x = data[2];
-            let y = data[3];
+            let y = cy + (data[3] - cy) * this.busGapY;
             let angle = data[4];
 
             // if(y * this.disMul < -8 ) return;
@@ -1369,31 +1460,53 @@ export class Game extends Component {
         return gaps;
     }
 
-    // Mỗi khoảng trống liên tiếp trên ring được gán luân phiên cho 1 bên: khoảng 1, 3, 5... do
-    // bên trái feed; khoảng 2, 4, 6... do bên phải feed — thay cho cách cũ (feed theo lượt đếm
-    // số row, không quan tâm khoảng). Trong 1 khoảng, slot nào tới đúng góc feed của bên được
-    // gán mới thực sự feed (leftFeedAngle/rightFeedAngle ± tolerance vẫn quyết định THỜI ĐIỂM).
+    // Mỗi slot trống được gán CỐ ĐỊNH cho 1 bên (slotOwner) từ lúc trống tới lúc được feed. Trong
+    // 1 khoảng trống liền nhau, slot kề nhau gán xen kẽ trái/phải (2 slot liền → trái lấy 1, chừa
+    // 1 cho phải). Slot đầu tiên của khoảng (chưa có slot kề nào được gán) thì gán cho bên đang
+    // được gán ít hơn → tổng thể vẫn 50/50. Bên nào hết người thì bên kia lấy luôn slot đó.
+    // (leftFeedAngle/rightFeedAngle ± tolerance vẫn quyết định THỜI ĐIỂM feed.)
+    slotOwner: ('L' | 'R')[] = [];
+    leftAssigned: number = 0;
+    rightAssigned: number = 0;
+    assignSlot(i: number, owner: 'L' | 'R') {
+        this.slotOwner[i] = owner;
+        if(owner == 'L') this.leftAssigned++;
+        else this.rightAssigned++;
+    }
     tryFeedEmptySlots() {
-        let gaps = this.getEmptyGaps();
-        gaps.forEach((gap, gapIndex) => {
-            let isLeftGap = gapIndex % 2 == 0;
-            gap.forEach(i => {
-                let a = this.getSlotAngle(i);
-                // Hết người bên phải (rightQueue rỗng) thì bên trái feed không cần điều kiện
-                // isLeftGap nữa — coi như mọi khoảng đều là của trái luôn.
-                if(isLeftGap || this.rightQueue.length == 0) {
-                    if(this.angleDist(a, this.leftFeedAngle) <= this.leftFeedAngleTolerance) {
-                        this.feedSlotFrom(this.leftQueue, this.leftLposes, i);
-                    }
-                }
-                //  else
-                    {
-                    if(this.angleDist(a, this.rightFeedAngle) <= this.rightFeedAngleTolerance) {
-                        this.feedSlotFrom(this.rightQueue, this.rightLposes, i);
-                    }
-                }
-            });
+        let n = this.ringRows.length;
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) this.slotOwner[i] = undefined;
+        }
+        this.getEmptyGaps().forEach(gap => {
+            let first = gap.findIndex(i => this.slotOwner[i]);
+            if(first < 0) {
+                first = 0;
+                this.assignSlot(gap[0], this.leftAssigned <= this.rightAssigned ? 'L' : 'R');
+            }
+            // lan ra 2 phía từ slot đã có chủ, slot kề nhau khác bên nhau
+            for(let k = first + 1; k < gap.length; k++) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k - 1]] == 'L' ? 'R' : 'L');
+            }
+            for(let k = first - 1; k >= 0; k--) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k + 1]] == 'L' ? 'R' : 'L');
+            }
         });
+
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) continue;
+            let a = this.getSlotAngle(i);
+            let owner = this.slotOwner[i];
+            let leftOk = owner == 'L' || this.rightQueue.length == 0;
+            let rightOk = owner == 'R' || this.leftQueue.length == 0;
+            if(leftOk && this.leftQueue.length > 0
+            && this.angleDist(a, this.leftFeedAngle) <= this.leftFeedAngleTolerance) {
+                this.feedSlotFrom(this.leftQueue, this.leftLposes, i);
+            } else if(rightOk && this.rightQueue.length > 0
+            && this.angleDist(a, this.rightFeedAngle) <= this.rightFeedAngleTolerance) {
+                this.feedSlotFrom(this.rightQueue, this.rightLposes, i);
+            }
+        }
     }
 
     // Phóng to (rowHighlightScale) row nào đang ở vùng chính diện (ringFrontAngleMin/Max) hoặc
@@ -1707,7 +1820,7 @@ export class Game extends Component {
                     console.log("Angle mode", this.angleMode);
                     
                 } else if(event.keyCode == KeyCode.SPACE) {
-                    this.printBusData = true;
+                    this.saveBusData = true;
                 }
             });
         }
@@ -1717,44 +1830,59 @@ export class Game extends Component {
         this.touchNode.off(Node.EventType.TOUCH_START, this.onTouchStart, this);
     }
 
+    // bắn tia từ điểm chạm vào khối hộp 3D của từng xe: đáy = center/size (toạ độ local của Bus), cao từ 0 tới nóc mesh.
+    // Cách cũ (cắt mặt phẳng Bound rồi so hình chữ nhật đáy xe) bị lệch vì Gameplay nghiêng, phải bấm cao hơn thân xe
+    // mới nhận. touchWidth/touchLength nới vùng bấm. Nhiều xe cùng trúng tia thì lấy xe gần camera nhất (xe vẽ đè lên trên)
     onTouchStart(event: EventTouch) {
         let pos = event.getLocation();
 
         let rayOrigin: Vec3 = ui.wCamera.screenToWorld(v3(pos.x, pos.y, 0));
         let rayDir: Vec3 = ui.wCamera.node.forward.clone().normalize();
-        let planePoint: Vec3 = this.bound.node.getWorldPosition();
-        let planeNormal: Vec3 = this.bound.node.forward.clone().normalize();
-        
-        const invRot = this.bound.node.getWorldRotation();
-        let rs = Ulis.rayPlane(rayOrigin, rayDir, planePoint, planeNormal);
 
-        rs = this.bound.node.inverseTransformPoint(v3(), rs);
-
-        let box = this.buses.find(b => {
-
-            let bUp = b.node.up.clone();
-            bUp = Vec3.transformQuat(v3(), bUp, invRot);
-
-            let angle = -Math.atan2(bUp.x, bUp.y);
-            angle = toDegree(angle);
-
-            let ws = this.bound.node.getWorldScale();
-
-            let r = b.getRect3();
-            let ct = v3(r.x + r.width/2, r.y + r.height/2, r.z + r.depth/2);
-            let sz = v3(r.width, r.height, r.depth);
-            ct = this.bound.node.inverseTransformPoint(v3(), ct);
-            sz = sz.multiply3f(1/ws.x, 1/ws.y, 1/ws.z);            
-            let rt = rect(ct.x - sz.x/2, ct.y - sz.y/2, sz.x, sz.y);
-
-            return Ulis.pointRect(v2(rs.x, rs.y), rt, angle);
+        let best = Infinity;
+        let box: Bus = null;
+        let inv = new Mat4();
+        let lo = v3(), lp = v3(), ld = v3(), far = v3();
+        Vec3.add(far, rayOrigin, rayDir);
+        this.buses.forEach(b => {
+            if(!b?.isValid || !b.node.activeInHierarchy) return;
+            Mat4.invert(inv, b.node.worldMatrix);
+            Vec3.transformMat4(lo, rayOrigin, inv);
+            Vec3.transformMat4(lp, far, inv);
+            Vec3.subtract(ld, lp, lo);
+            let hx = b.size.x / 2 * this.touchWidth, hy = b.size.y / 2 * this.touchLength;
+            let t = rayBox(lo, ld, b.center.x - hx, b.center.y - hy, 0, b.center.x + hx, b.center.y + hy, this.busHeight(b));
+            if(t !== null && t < best) { best = t; box = b; }
         });
 
         if(box && !box.moving) {
-            // console.log(box.node.name);            
             this.onBox(box);
-        }      
-        this.firstMove();  
+        }
+        this.firstMove();
+    }
+
+    // chiều cao thật của xe (z cao nhất của các mesh đang bật, toạ độ local của Bus), tính 1 lần rồi lưu lại
+    // (size.z trong prefab cao hơn xe thật nhiều, hộp quá cao của xe phía dưới sẽ che xe phía trên)
+    busHeights: Map<Bus, number> = new Map();
+    busHeight(b: Bus) {
+        let h = this.busHeights.get(b);
+        if(h !== undefined) return h;
+        h = 0;
+        let inv = Mat4.invert(new Mat4(), b.node.worldMatrix);
+        let m = new Mat4(), p = v3();
+        b.getComponentsInChildren(MeshRenderer).forEach(mr => {
+            if(!mr.node.activeInHierarchy || !mr.mesh) return;
+            let mn = mr.mesh.struct.minPosition, mx = mr.mesh.struct.maxPosition;
+            if(!mn || !mx) return;
+            Mat4.multiply(m, inv, mr.node.worldMatrix);
+            for(let x of [mn.x, mx.x]) for(let y of [mn.y, mx.y]) for(let z of [mn.z, mx.z]) {
+                Vec3.transformMat4(p, v3(x, y, z), m);
+                h = Math.max(h, p.z);
+            }
+        });
+        if(h <= 0) h = b.center.z + b.size.z / 2;
+        this.busHeights.set(b, h);
+        return h;
     }
 
     onTool(bus: Bus) {
@@ -1767,15 +1895,16 @@ export class Game extends Component {
         }
     }
 
-    onBox(box: Bus) {
+    // silent: chỉ tính box.obstascles (dùng khi Save Bus Data) — không xoay xe tool, không phát tiếng.
+    onBox(box: Bus, silent: boolean = false) {
 
-        if(this.tool) {
+        if(this.tool && !silent) {
             this.onTool(box);
             return;
         }
 
 
-        sm?.playSound(SoundType.Click);
+        if(!silent) sm?.playSound(SoundType.Click);
         let nearest: Vec2 = null;
         let rootNearest: Vec2 = null;
         let points: Vec3[] = [];
@@ -1784,37 +1913,30 @@ export class Game extends Component {
 
         let rect3 = box.getRect3();
         let normal = box.node.right.clone().normalize();
-        let rootLeft = root.clone().add(normal.clone().negative().multiplyScalar(rect3.width * 0.4));
-        let rootRight = root.clone().add(normal.clone().multiplyScalar(rect3.width * 0.4));
-        
-        rootLeft = this.bound.node.inverseTransformPoint(v3(), rootLeft);
-        rootRight = this.bound.node.inverseTransformPoint(v3(), rootRight);
-        
+        // 3 tia (mép trái, giữa, mép phải) phủ hết bề ngang xe đã nới theo hitScale - trước đây 2 tia ở ±40% của size
+        // (size nhỏ hơn model) nên xe đi sượt mép xe khác vẫn lọt qua
+        let half = rect3.width * 0.5 * this.hitScale;
+        let roots = [-half, 0, half].map(o => {
+            let p = root.clone().add(normal.clone().multiplyScalar(o));
+            return this.bound.node.inverseTransformPoint(v3(), p);
+        });
+
         let up = box.node.up.clone().normalize();
         const invRot = this.bound.node.getWorldRotation();
         Quat.invert(invRot, invRot);
         up = Vec3.transformQuat(v3(), up, invRot);
 
         let buses = this.buses.filter(b => b != box);
-        let z: Number[] = [];
         let index = 0;
         buses.forEach((b, i) => {
 
             let iBus = buses[i];
-
-            // let wrot = bus.node.getWorldRotation();
-            // const parentRot = this.bound.node.worldRotation.clone();
-            // Quat.invert(parentRot, parentRot);
-
-            // const localRot = new Quat();
-            // Quat.multiply(localRot, parentRot, wrot);
 
             let bUp = iBus.node.up.clone();
             bUp = Vec3.transformQuat(v3(), bUp, invRot);
 
             let angle = -Math.atan2(bUp.x, bUp.y);
             angle = toDegree(angle);
-            z.push(angle);
 
             let ws = this.bound.node.getWorldScale();
 
@@ -1822,51 +1944,29 @@ export class Game extends Component {
             let ct = v3(r.x + r.width/2, r.y + r.height/2, r.z + r.depth/2);
             let sz = v3(r.width, r.height, r.depth);
             ct = this.bound.node.inverseTransformPoint(v3(), ct);
-            sz = sz.multiply3f(1/ws.x, 1/ws.y, 1/ws.z);            
+            sz = sz.multiply3f(this.hitScale/ws.x, this.hitScale/ws.y, 1/ws.z);
             let rt = rect(ct.x - sz.x/2, ct.y - sz.y/2, sz.x, sz.y);
 
-            let pLeft = Ulis.rayRectPoint(v2(rootLeft.x, rootLeft.y), v2(up.x, up.y), rt, angle);
-            let pRight = Ulis.rayRectPoint(v2(rootRight.x, rootRight.y), v2(up.x, up.y), rt, angle);
-
-            if (pLeft) {
+            let hit = false;
+            roots.forEach(rp => {
+                let r2 = v2(rp.x, rp.y);
+                let p = Ulis.rayRectPoint(r2, v2(up.x, up.y), rt, angle);
+                if(!p) return;
+                hit = true;
                 points.push(ct);
-                if (!nearest) {
-                    nearest = pLeft;
-                    rootNearest = v2(rootLeft.x, rootLeft.y);
+                // giữ điểm chạm gần gốc tia nhất (xe dừng lại ở vật cản đầu tiên)
+                if (!nearest || Vec2.distance(p, r2) < Vec2.distance(nearest, rootNearest)) {
+                    nearest = p;
+                    rootNearest = r2;
                     index = i;
-                } else {
-                    let d1 = Vec2.distance(pLeft, v2(rootLeft.x, rootLeft.y));
-                    let d2 = Vec2.distance(nearest, rootNearest);
-                    if (d1 < d2) {
-                        nearest = pLeft;
-                        rootNearest = v2(rootLeft.x, rootLeft.y);
-                        index = i;
-                    }
                 }
-            }
+            });
 
-            if (pRight) {
-                points.push(ct);
-                if (!nearest) {
-                    nearest = pRight;
-                    rootNearest = v2(rootRight.x, rootRight.y);
-                    index = i;
-                } else {
-                    let d1 = Vec2.distance(pRight, v2(rootRight.x, rootRight.y));
-                    let d2 = Vec2.distance(nearest, rootNearest);
-                    if (d1 < d2) {
-                        nearest = pRight;
-                        rootNearest = v2(rootRight.x, rootRight.y);
-                        index = i;
-                    }
-                }
-            }
-
-            if(pLeft || pRight) {
+            if(hit) {
                 if(!box.obstascles.includes(iBus.node)) box.obstascles.push(iBus.node);
             }
-        });       
-    
+        });
+
         if(EDITOR_NOT_IN_PREVIEW) return;
 
 
@@ -2322,4 +2422,20 @@ export class Game extends Component {
     }
 }
 
-
+// tia (o + t*d) cắt hộp AABB [min, max] (slab test): trả về t lúc đi vào hộp, không cắt thì null
+function rayBox(o: Vec3, d: Vec3, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): number {
+    let t0 = -Infinity, t1 = Infinity;
+    const axes: [number, number, number, number][] = [[o.x, d.x, x0, x1], [o.y, d.y, y0, y1], [o.z, d.z, z0, z1]];
+    for(const [p, v, mn, mx] of axes) {
+        if(Math.abs(v) < 1e-9) {
+            if(p < mn || p > mx) return null;
+            continue;
+        }
+        let a = (mn - p) / v, c = (mx - p) / v;
+        if(a > c) { const tmp = a; a = c; c = tmp; }
+        t0 = Math.max(t0, a);
+        t1 = Math.min(t1, c);
+        if(t0 > t1) return null;
+    }
+    return t0;
+}
