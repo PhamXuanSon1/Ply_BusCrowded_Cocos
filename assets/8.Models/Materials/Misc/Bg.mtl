@@ -5,16 +5,81 @@
   "__editorExtras__": {},
   "_native": "",
   "_effectAsset": {
-    "__uuid__": "a3cd009f-0ab0-420d-9278-b9fdab939bbc",
+    "__uuid__": "17417b3c-8308-43b7-b85a-32b4ec2b4fe3",
     "__expectedType__": "cc.EffectAsset"
   },
   "_techIdx": 0,
   "_defines": [
     {
-      "USE_TEXTURE": true
+      "USE_INSTANCING": true,
+      "USE_ALBEDO_MAP": true,
+      "USE_ALPHA_TEST": true,
+      "FIXED_LIGHTING": true
+    },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {
+      "USE_INSTANCING": true
     }
   ],
   "_states": [
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
     {
       "rasterizerState": {},
       "depthStencilState": {},
@@ -27,17 +92,39 @@
   ],
   "_props": [
     {
+      "mainColor": {
+        "__type__": "cc.Color",
+        "r": 172,
+        "g": 165,
+        "b": 255,
+        "a": 255
+      },
+      "albedoScale": {
+        "__type__": "cc.Vec3",
+        "x": 2,
+        "y": 2,
+        "z": 2
+      },
+      "roughness": 0.691,
+      "specularIntensity": 0.905,
+      "emissive": {
+        "__type__": "cc.Color",
+        "r": 26,
+        "g": 0,
+        "b": 216,
+        "a": 255
+      },
       "mainTexture": {
-        "__uuid__": "c9e52517-045d-4b1c-96c6-811af1bab7e5@6c48a",
+        "__uuid__": "3803c529-2aeb-4d47-9a8c-035f6691a482@6c48a",
         "__expectedType__": "cc.Texture2D"
       },
-      "tilingOffset": {
-        "__type__": "cc.Vec4",
-        "x": 29.926,
-        "y": 13.922,
-        "z": 0,
-        "w": 0
-      }
-    }
+      "brightness": 0.307
+    },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {}
   ]
 }
