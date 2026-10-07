@@ -2318,15 +2318,15 @@
     },
     "_lscale": {
       "__type__": "cc.Vec3",
-      "x": 0.531,
-      "y": 1.259,
+      "x": 0.65,
+      "y": 1.45,
       "z": 1
     },
     "_mobility": 0,
     "_layer": 1073741824,
     "_euler": {
       "__type__": "cc.Vec3",
-      "x": -90,
+      "x": -89.99999999999999,
       "y": 0,
       "z": 0
     },
@@ -2402,8 +2402,6 @@
       "__id__": 0
     },
     "fileId": "31oSU5EHZAH76d5ffCevhL",
-    "instance": null,
-    "targetOverrides": null,
     "nestedPrefabInstanceRoots": null
   },
   {
@@ -4139,6 +4137,7 @@
       "__id__": 0
     },
     "fileId": "56aTKhRnRHLYOB09XDtmEb",
+    "instance": null,
     "targetOverrides": []
   }
 ]

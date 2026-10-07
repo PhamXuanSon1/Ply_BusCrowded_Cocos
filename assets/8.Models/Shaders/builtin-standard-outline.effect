@@ -33,7 +33,14 @@ CCEffect %{
         contrast: { value: 1.0, editor: { slide: true, range: [0.0, 2.0], step: 0.001 }  }
         saturation: { value: 1.0, editor: { slide: true, range: [0.0, 10.0], step: 0.001 } }
         hue:        { value: 0.0, editor: { slide: true, range: [-180.0, 180.0], step: 1.0 } }    # độ
-        
+
+        gradColor1:    { value: [1.0, 1.0, 1.0, 1.0], linear: true, editor: { parent: USE_GRADIENT, displayName: "Gradient Color 1", type: color } }
+        gradColor2:    { value: [0.0, 0.0, 0.0, 1.0], linear: true, editor: { parent: USE_GRADIENT, displayName: "Gradient Color 2", type: color } }
+        gradAngle:     { value: 90.0, target: gradParams.x, editor: { parent: USE_GRADIENT, displayName: "Gradient Angle", tooltip: "Hướng gradient theo UV mesh (độ). 0 = ngang, 90 = dọc", slide: true, range: [0.0, 360.0], step: 1.0 } }
+        gradOffset:    { value: 0.0, target: gradParams.y, editor: { parent: USE_GRADIENT, displayName: "Gradient Offset", tooltip: "Dời điểm giữa gradient về phía Color 1 (âm) hoặc Color 2 (dương)", slide: true, range: [-1.0, 1.0], step: 0.001 } }
+        gradScale:     { value: 1.0, target: gradParams.z, editor: { parent: USE_GRADIENT, displayName: "Gradient Sharpness", tooltip: "Độ gắt chuyển màu: 1 = trải đều cả mặt, lớn hơn = vùng chuyển hẹp lại", slide: true, range: [0.1, 10.0], step: 0.01 } }
+        gradIntensity: { value: 1.0, target: gradParams.w, editor: { parent: USE_GRADIENT, displayName: "Gradient Intensity", tooltip: "0 = dùng màu Albedo như cũ, 1 = thay hoàn toàn bằng gradient", slide: true, range: [0.0, 1.0], step: 0.001 } }
+
         root: {value : [0.0, 0.0, 0.0, 0.0]}
         normal: {value : [0.0, 0.0, 0.0, 0.0]}
 
@@ -266,6 +273,9 @@ CCProgram shared-ubos %{
     vec4 glowColor;
     vec4 glowParams; // x: intensity, y: pulse speed, z: fresnel power, w: pulse floor
     vec4 edgeParams; // x: trans edge power, y: trans edge min alpha, z/w: unused
+    vec4 gradColor1;
+    vec4 gradColor2;
+    vec4 gradParams; // x: angle (deg), y: offset, z: sharpness, w: intensity
     float brightness;
     float contrast;
     float saturation;
@@ -413,9 +423,19 @@ CCProgram surface-fragment %{
 
   #pragma define-meta CLAMP_BRIGHTNESS
   #pragma define-meta ENABLE_TRANS_EDGE
+  #pragma define-meta USE_GRADIENT
   vec4 SurfacesFragmentModifyBaseColorAndTransparency()
   {
     vec4 baseColor = albedo;
+
+    #if USE_GRADIENT
+      // Gradient thay cho màu Albedo, tính trên UV gốc của mesh (bỏ tiling) để trải đúng 1 lần cả mặt
+      vec2 gUV = (DEFAULT_UV - tilingOffset.zw) / tilingOffset.xy - 0.5;
+      float gRad = radians(gradParams.x);
+      float t = dot(gUV, vec2(cos(gRad), sin(gRad))) * gradParams.z + 0.5 + gradParams.y;
+      vec4 gradColor = mix(gradColor1, gradColor2, clamp(t, 0.0, 1.0));
+      baseColor = mix(baseColor, gradColor, gradParams.w);
+    #endif
 
     #if USE_VERTEX_COLOR
       baseColor.rgb *= SRGBToLinear(FSInput_vertexColor.rgb); // use linear

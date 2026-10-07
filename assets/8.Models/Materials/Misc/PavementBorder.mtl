@@ -14,9 +14,7 @@
       "USE_INSTANCING": true,
       "USE_ALBEDO_MAP": true,
       "USE_ALPHA_TEST": true,
-      "USE_GRADIENT": true,
-      "FIXED_LIGHTING": true,
-      "JAM_LIGHTING": true
+      "FIXED_LIGHTING": true
     },
     {},
     {},
@@ -96,38 +94,19 @@
     {
       "mainColor": {
         "__type__": "cc.Color",
-        "r": 92,
-        "g": 0,
-        "b": 255,
+        "r": 165,
+        "g": 165,
+        "b": 165,
         "a": 255
       },
-      "albedoScale": {
-        "__type__": "cc.Vec3",
-        "x": 2,
-        "y": 2,
-        "z": 2
-      },
-      "roughness": 0.691,
-      "specularIntensity": 0.905,
-      "emissive": {
-        "__type__": "cc.Color",
-        "r": 92,
-        "g": 0,
-        "b": 255,
-        "a": 255
-      },
+      "roughness": 0,
+      "metallic": 0.226,
+      "specularIntensity": 0,
       "mainTexture": {
-        "__uuid__": "3803c529-2aeb-4d47-9a8c-035f6691a482@6c48a",
+        "__uuid__": "a6f17cd7-39de-4622-a03f-fa58a6942efb@6c48a",
         "__expectedType__": "cc.Texture2D"
       },
-      "brightness": 0.307,
-      "gradColor1": {
-        "__type__": "cc.Color",
-        "r": 92,
-        "g": 0,
-        "b": 255,
-        "a": 255
-      }
+      "brightness": 0.1
     },
     {},
     {},

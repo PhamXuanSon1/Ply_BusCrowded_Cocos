@@ -56,6 +56,8 @@ export class Game extends Component {
     tutTime: number = 3;
     @property({ type: Animation, tooltip: "Animation phát khi hết slot trống" })
     noSlot: Animation = null!
+    @property({group: G_LOOK, range: [-90, 0, 1], slide: true, tooltip: "Góc nghiêng map (rotation X của node Game) khi preview/build. Editor luôn để phẳng cho dễ xếp map. Âm càng lớn càng nghiêng"})
+    previewTiltX: number = -25;
     humanSize: Vec2 = v2(47, 52);
     @property({group: G_TOUCH, range: [0.5, 3, 0.05], slide: true, tooltip: "Vùng bấm xe theo chiều NGANG thân xe (tỉ lệ so với bề rộng xe). 1 = đúng bằng xe, lớn hơn = dễ bấm trúng hơn"})
     touchWidth: number = 1;
@@ -584,7 +586,7 @@ export class Game extends Component {
 
     init() {
         if(!EDITOR_NOT_IN_PREVIEW) {
-            this.node.eulerAngles = v3(-25, 0, 0);
+            this.node.eulerAngles = v3(this.previewTiltX, 0, 0);
         }
         this.initLayers();
         this.initTouch();

@@ -1,4 +1,5 @@
 import { _decorator, assetManager, Component, Font, Node } from "cc";
+import { PREVIEW } from "cc/env";
 const { ccclass, property } = _decorator;
 
 // openFullscreen();
@@ -7,6 +8,14 @@ export var gc: GameController;
 
 @ccclass("GameController")
 export class GameController extends Component {
+
+  @property({ type: String })
+  storeDialogMessage: string = "Open Store";
+    // / true sau khi redirectToStore được gọi: không cho chơi tiếp nữa. */
+  stopped: boolean = false;
+  
+  // / Phát ra khi game bị dừng (đã chuyển sang store) - Room nghe để khoá gameplay. */
+  static readonly EVENT_STOP = "game-stop";
 
   onLoad() {
     gc = this;
@@ -19,7 +28,14 @@ export class GameController extends Component {
 
  
 
+
   redirectToStore() {    
+    if (PREVIEW &&  typeof window !== 'undefined') {
+            const shouldOpenStore = window.confirm(this.storeDialogMessage);
+            if (!shouldOpenStore) return;
+        }
+    // Đã chuyển sang store -> dừng game, người chơi không chơi tiếp được nữa (gọi từ bất cứ đâu đều áp dụng).
+    this.stopGame();
     try {
       PlayableSDK.download();
       PlayableSDK.game_end();            
@@ -27,7 +43,16 @@ export class GameController extends Component {
       
     }
   }
+
+  
+  // / Dừng game hẳn (chỉ 1 lần): các hệ gameplay nghe EVENT_STOP để khoá thao tác, dừng đồng hồ / spawn. */
+  stopGame() {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.node.emit(GameController.EVENT_STOP);
+  }
 }
+
 
 
 
@@ -48,7 +73,7 @@ type GameLoad = {
 var loaded = false;
 
 const gameLoad: GameLoad = {
-    gameName: " Crowd Escape: Bus Puzzle ",
+    gameName: " Pixel Bus Sort ",
     font: "Arial",
     customScale: 1.5,
     customHeight: 100,
@@ -62,8 +87,34 @@ const gameLoad: GameLoad = {
 
       if(loaded) return;
       loaded = true;
-      await loadFont();
-      sp.initWaterMark();
+      const fontName = "DVN-Fredoka-Bold"; 
+      const fontUuid = "cejhIaZllGjbSR0e8PaJLH";
+      assetManager.loadAny(fontUuid, async (err, asset: Font) => {
+        if (err) {
+          console.error(err);
+          return;
+        }
+
+        gameLoad.font = fontName;
+
+        // Build single-file (mini-game adapter) đã tự add font vào document.fonts
+        // ngay trong lúc load asset (dùng data embedded, không fetch mạng). Chạy
+        // trên localhost (web build thường) thì chưa có, nên phải tự add bằng
+        // FontFace + asset.nativeUrl (lúc này nativeUrl là URL fetch được thật).
+        // const isRegistered = document.fonts.check(`12px "${fontName}"`);
+        // if (!isRegistered) 
+        {
+          try {
+            const fontFace = new FontFace(fontName, `url(${asset.nativeUrl})`);
+            await fontFace.load();
+            document.fonts.add(fontFace);
+          } catch (e) {
+            console.warn('Add font to document failed:', e);
+          }
+        }
+
+        sp.initWaterMark();
+      });
     },
   };
 
@@ -75,60 +126,6 @@ try {
 } catch (error) {  
 }
 
-
-async function loadFont() {
-  const fontName = "DVN-Fredoka-Bold"; 
-  const fontUuid = "cejhIaZllGjbSR0e8PaJLH";
-  await new Promise((resolve, reject) => {
-    assetManager.loadAny(fontUuid, async (err, asset: Font) => {
-      if (err) {
-        console.error(err);
-        reject(err);
-        return;
-      }
-
-      gameLoad.font = fontName;
-
-      // Build single-file (playable-ads-builder) đã tự đăng ký font qua BingoEngine.fontLoader
-      // (hook vào cc.assetManager.downloader cho .ttf/.woff/...) NGAY khi assetManager.loadAny
-      // tải xong - nhưng nó đặt tên font-family theo đường dẫn resource nội bộ đã sanitize, KHÔNG
-      // phải theo `fontName` ("DVN-Fredoka-Bold") mà code này dùng -> ctx.font yêu cầu đúng tên
-      // "DVN-Fredoka-Bold" sẽ không khớp font đã đăng ký, fallback về font mặc định.
-      //
-      // Trước đây tự tạo `new FontFace(fontName, \`url(${asset.nativeUrl})\`)` để dự phòng riêng
-      // cho localhost, NHƯNG FontFace với nguồn là chuỗi url() để chính trình duyệt tự fetch qua
-      // tầng network RIÊNG - không đi qua fetch/XMLHttpRequest mà bản build single-file đã patch để
-      // phục vụ asset nhúng base64 trong file (BingoEngine chỉ patch `fetch` cho .wasm/.bin, còn lại
-      // rơi về fetch gốc -> 404 vì asset.nativeUrl không phải URL thật trong bản single-file).
-      //
-      // Fix: tự đọc bytes qua XMLHttpRequest (BingoEngine patch tổng quát cho MỌI loại resource
-      // nhúng qua responseType=arraybuffer, không giới hạn như fetch) rồi tự dựng FontFace với
-      // ĐÚNG TÊN mình muốn - hoạt động giống nhau ở cả localhost (XHR thật) lẫn bản single-file
-      // (XHR đã patch).
-      try {
-        const buffer = await new Promise<ArrayBuffer>((res, rej) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('GET', asset.nativeUrl, true);
-          xhr.responseType = 'arraybuffer';
-          xhr.onload = () => res(xhr.response as ArrayBuffer);
-          xhr.onerror = () => rej(new Error(`Không tải được font: ${asset.nativeUrl}`));
-          xhr.send();
-        });
-        const fontFace = new FontFace(fontName, buffer);
-        await fontFace.load();
-        document.fonts.add(fontFace);
-      } catch (e) {
-        console.warn('Add font to document failed:', e);
-        reject(e);
-        return;
-      }
-
-      resolve(null);
-
-    });
-    
-  });
-}
 
 
 
