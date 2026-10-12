@@ -1403,31 +1403,53 @@ export class Game extends Component {
         return gaps;
     }
 
-    // Mỗi khoảng trống liên tiếp trên ring được gán luân phiên cho 1 bên: khoảng 1, 3, 5... do
-    // bên trái feed; khoảng 2, 4, 6... do bên phải feed — thay cho cách cũ (feed theo lượt đếm
-    // số row, không quan tâm khoảng). Trong 1 khoảng, slot nào tới đúng góc feed của bên được
-    // gán mới thực sự feed (leftFeedAngle/rightFeedAngle ± tolerance vẫn quyết định THỜI ĐIỂM).
+    // Mỗi slot trống được gán CỐ ĐỊNH cho 1 bên (slotOwner) từ lúc trống tới lúc được feed. Trong
+    // 1 khoảng trống liền nhau, slot kề nhau gán xen kẽ trái/phải (2 slot liền → trái lấy 1, chừa
+    // 1 cho phải). Slot đầu tiên của khoảng (chưa có slot kề nào được gán) thì gán cho bên đang
+    // được gán ít hơn → tổng thể vẫn 50/50. Bên nào hết người thì bên kia lấy luôn slot đó.
+    // (leftFeedAngle/rightFeedAngle ± tolerance vẫn quyết định THỜI ĐIỂM feed.)
+    slotOwner: ('L' | 'R')[] = [];
+    leftAssigned: number = 0;
+    rightAssigned: number = 0;
+    assignSlot(i: number, owner: 'L' | 'R') {
+        this.slotOwner[i] = owner;
+        if(owner == 'L') this.leftAssigned++;
+        else this.rightAssigned++;
+    }
     tryFeedEmptySlots() {
-        let gaps = this.getEmptyGaps();
-        gaps.forEach((gap, gapIndex) => {
-            let isLeftGap = gapIndex % 2 == 0;
-            gap.forEach(i => {
-                let a = this.getSlotAngle(i);
-                // Hết người bên phải (rightQueue rỗng) thì bên trái feed không cần điều kiện
-                // isLeftGap nữa — coi như mọi khoảng đều là của trái luôn.
-                if(isLeftGap || this.rightQueue.length == 0) {
-                    if(this.angleDist(a, this.leftFeedAngle) <= this.leftFeedAngleTolerance) {
-                        this.feedSlotFrom(this.leftQueue, this.leftLposes, i);
-                    }
-                }
-                //  else
-                    {
-                    if(this.angleDist(a, this.rightFeedAngle) <= this.rightFeedAngleTolerance) {
-                        this.feedSlotFrom(this.rightQueue, this.rightLposes, i);
-                    }
-                }
-            });
+        let n = this.ringRows.length;
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) this.slotOwner[i] = undefined;
+        }
+        this.getEmptyGaps().forEach(gap => {
+            let first = gap.findIndex(i => this.slotOwner[i]);
+            if(first < 0) {
+                first = 0;
+                this.assignSlot(gap[0], this.leftAssigned <= this.rightAssigned ? 'L' : 'R');
+            }
+            // lan ra 2 phía từ slot đã có chủ, slot kề nhau khác bên nhau
+            for(let k = first + 1; k < gap.length; k++) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k - 1]] == 'L' ? 'R' : 'L');
+            }
+            for(let k = first - 1; k >= 0; k--) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k + 1]] == 'L' ? 'R' : 'L');
+            }
         });
+
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) continue;
+            let a = this.getSlotAngle(i);
+            let owner = this.slotOwner[i];
+            let leftOk = owner == 'L' || this.rightQueue.length == 0;
+            let rightOk = owner == 'R' || this.leftQueue.length == 0;
+            if(leftOk && this.leftQueue.length > 0
+            && this.angleDist(a, this.leftFeedAngle) <= this.leftFeedAngleTolerance) {
+                this.feedSlotFrom(this.leftQueue, this.leftLposes, i);
+            } else if(rightOk && this.rightQueue.length > 0
+            && this.angleDist(a, this.rightFeedAngle) <= this.rightFeedAngleTolerance) {
+                this.feedSlotFrom(this.rightQueue, this.rightLposes, i);
+            }
+        }
     }
 
     // Phóng to (rowHighlightScale) row nào đang ở vùng chính diện (ringFrontAngleMin/Max) hoặc
