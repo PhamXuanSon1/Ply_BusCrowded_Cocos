@@ -1,4 +1,5 @@
 import { _decorator, assetManager, Component, Font, Node } from "cc";
+import { PREVIEW } from "cc/env";
 const { ccclass, property } = _decorator;
 
 // openFullscreen();
@@ -7,6 +8,14 @@ export var gc: GameController;
 
 @ccclass("GameController")
 export class GameController extends Component {
+
+  @property({ type: String })
+  storeDialogMessage: string = "Open Store";
+    // / true sau khi redirectToStore được gọi: không cho chơi tiếp nữa. */
+  stopped: boolean = false;
+  
+  // / Phát ra khi game bị dừng (đã chuyển sang store) - Room nghe để khoá gameplay. */
+  static readonly EVENT_STOP = "game-stop";
 
   onLoad() {
     gc = this;
@@ -19,7 +28,14 @@ export class GameController extends Component {
 
  
 
+
   redirectToStore() {    
+    if (PREVIEW &&  typeof window !== 'undefined') {
+            const shouldOpenStore = window.confirm(this.storeDialogMessage);
+            if (!shouldOpenStore) return;
+        }
+    // Đã chuyển sang store -> dừng game, người chơi không chơi tiếp được nữa (gọi từ bất cứ đâu đều áp dụng).
+    this.stopGame();
     try {
       PlayableSDK.download();
       PlayableSDK.game_end();            
@@ -27,7 +43,16 @@ export class GameController extends Component {
       
     }
   }
+
+  
+  // / Dừng game hẳn (chỉ 1 lần): các hệ gameplay nghe EVENT_STOP để khoá thao tác, dừng đồng hồ / spawn. */
+  stopGame() {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.node.emit(GameController.EVENT_STOP);
+  }
 }
+
 
 
 
