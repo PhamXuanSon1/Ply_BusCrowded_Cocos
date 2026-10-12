@@ -1,7 +1,7 @@
 import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, misc, MeshRenderer, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, UIOpacity, UITransform, v2, view, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
-import { EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
+import { EDITOR, EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
 import { ui } from '../Manager/UI';
 import Ulis, { cEasing, nearestAngle, rect3, Rect3, splitSum } from '../Misc/Ulis';
 import { sm, SoundType } from '../Manager/SoundManager';
@@ -179,7 +179,7 @@ export class Game extends Component {
 
     @property({ tooltip: "Bật: người dùng sprite 2D; tắt: model 3D + shadow" })
     human2D: boolean = false;
-    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space in BusData" })
+    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space lưu BusData" })
     tool: boolean = false;
 
     @property({ tooltip: "Tick để xuất ảnh pixel người ra Human.png" })
@@ -188,51 +188,85 @@ export class Game extends Component {
     }
     get savePNG() { return false; }
 
-    @property({ tooltip: "Tick để in Level Data, Bus Data, Linear Human Data ra console" })
-    set printBusData(v: boolean) {
-        
+    @property({ tooltip: "Tick để lưu xe trên scene (vị trí, góc, màu, kiểu xe) vào Data.ts — tự tính lại Obstacle Data + Linear Human Data, dựng lại xe và cập nhật ngay" })
+    set saveBusData(v: boolean) {
+        this.saveBuses();
+    }
+    get saveBusData() { return false; }
+
+    // Gộp Print Bus Data + Print Block Data + Print Cached Path: đọc xe trên scene → BusData, dựng lại xe
+    // từ data (spawn mới theo `type` nên đổi kiểu xe trong Inspector cũng ăn), tính ObstacleData +
+    // LinearHumanData từ xe vừa dựng, rồi ghi đè 3 mảng đó trong Data.ts. Mảng import được sửa
+    // tại chỗ nên scene dùng data mới luôn, không cần chờ compile lại. Ngoài editor chỉ in ra console.
+    async saveBuses() {
         this.printData();
-        let data = [];
-        let buses = this.bus.getComponentsInChildren(Bus);
-        buses.forEach((bus) => {
-            let type = bus.type - PoolType.Bus;
-            let iColor = bus.dColor;
+        let sceneBuses = this.bus.getComponentsInChildren(Bus);
+        let busData = sceneBuses.map(bus => {
             let x = bus.node.position.x / this.disMul.x;
             let y = bus.node.position.y / this.disMul.y;
-            let angle = bus.node.eulerAngles.z;
-            data.push([type, iColor, truncate(x, 3), truncate(y, 3), truncate(angle, 3)]);
-        })
+            return [bus.type - PoolType.Bus, bus.dColor, truncate(x, 3), truncate(y, 3), truncate(bus.node.eulerAngles.z, 3)];
+        });
+        BusData.length = 0;
+        BusData.push(...busData);
 
-        console.log("Bus Data");        
-        console.log(JSON.stringify(data));
+        if(EDITOR) {
+            // Xoá hết xe cũ rồi dựng lại từ BusData — xe đổi `type` sẽ được spawn đúng prefab mới.
+            this.bus.getComponentsInChildren(Bus).forEach(b => {
+                b.node.removeFromParent();
+                b.node.destroy();
+            });
+            this.initBuses();
+        } else {
+            // Preview (tool mode, Space): không dựng lại giữa game, chỉ tính từ xe hiện có.
+            this.buses = this.bus.getComponentsInChildren(Bus);
+        }
 
+        let obstacleData = this.buses.map(b => {
+            b.obstascles = [];
+            this.onBox(b, true);
+            return b.obstascles.map(c => this.buses.indexOf(c.getComponent(Bus)));
+        });
+        ObstacleData.length = 0;
+        ObstacleData.push(...obstacleData);
 
-        // Mỗi phần tử đã là 1 row (không flatten nữa) — mỗi row sẽ thành humanPerRow người khi áp dụng.
-        let hm = this.getHumanDataFromBuses();
-        console.log("Linear Human Data");
-        console.log(JSON.stringify(hm));        
+        let humanData = this.getHumanDataFromBuses();
+        LinearHumanData.length = 0;
+        LinearHumanData.push(...humanData);
+
+        if(!EDITOR) {
+            console.log("Bus Data");
+            console.log(JSON.stringify(BusData));
+            console.log("Obstacle Data");
+            console.log(JSON.stringify(ObstacleData));
+            console.log("Linear Human Data");
+            console.log(JSON.stringify(LinearHumanData));
+            return;
+        }
+        await this.writeDataFile({ BusData, ObstacleData, LinearHumanData });
     }
-    get printBusData() { return false; }
 
-
-    @property({ tooltip: "Tick để tính và in Obstacle Data ra console" })
-    set printBlockData(v: boolean) {
-        let ostacleData = [];
-        this.buses.forEach(b => {
-            this.onBox(b);
-            ostacleData.push(b.obstascles.map(c => this.buses.indexOf(c.getComponent(Bus))));
-        })
-        console.log("Obstacle Data");
-        
-        console.log(JSON.stringify(ostacleData));        
+    // Ghi đè các dòng `export const <tên> = [...]` trong Data.ts (mỗi mảng nằm trên 1 dòng).
+    async writeDataFile(values: { [name: string]: any[] }) {
+        const url = "db://assets/7.Scripts/Gameplay/Data.ts";
+        const Editor = (globalThis as any).Editor;
+        const fs = (globalThis as any).require?.("fs");
+        if(!Editor || !fs) {
+            console.error("Save Bus Data: không truy cập được Editor/fs để ghi Data.ts");
+            return;
+        }
+        const path: string = await Editor.Message.request("asset-db", "query-path", url);
+        let text: string = fs.readFileSync(path, "utf8");
+        for(let name in values) {
+            const reg = new RegExp("(export const " + name + "\\s*=\\s*).*$", "m");
+            if(!reg.test(text)) {
+                console.error("Save Bus Data: không tìm thấy " + name + " trong Data.ts");
+                return;
+            }
+            text = text.replace(reg, (_, head) => head + JSON.stringify(values[name]) + " ");
+        }
+        await Editor.Message.request("asset-db", "save-asset", url, text);
+        console.log("Save Bus Data: đã lưu " + BusData.length + " xe vào Data.ts");
     }
-    get printBlockData() { return false; }
-
-    @property({ tooltip: "Tick để chạy A* và in Human Data + Cached paths (logic lưới cũ)" })
-    set printCachedPath(v: boolean) {
-        this.initPaths();       
-    }
-    get printCachedPath() { return false; }
 
     onMatChange() {
         let mats = this.mat.getComponentsInChildren(Mats);
@@ -1707,7 +1741,7 @@ export class Game extends Component {
                     console.log("Angle mode", this.angleMode);
                     
                 } else if(event.keyCode == KeyCode.SPACE) {
-                    this.printBusData = true;
+                    this.saveBusData = true;
                 }
             });
         }
@@ -1767,15 +1801,16 @@ export class Game extends Component {
         }
     }
 
-    onBox(box: Bus) {
+    // silent: chỉ tính box.obstascles (dùng khi Save Bus Data) — không xoay xe tool, không phát tiếng.
+    onBox(box: Bus, silent: boolean = false) {
 
-        if(this.tool) {
+        if(this.tool && !silent) {
             this.onTool(box);
             return;
         }
 
 
-        sm?.playSound(SoundType.Click);
+        if(!silent) sm?.playSound(SoundType.Click);
         let nearest: Vec2 = null;
         let rootNearest: Vec2 = null;
         let points: Vec3[] = [];
@@ -1867,7 +1902,7 @@ export class Game extends Component {
             }
         });       
     
-        if(EDITOR_NOT_IN_PREVIEW) return;
+        if(EDITOR_NOT_IN_PREVIEW || silent) return;
 
 
         if(points.length == 0) {
