@@ -115,6 +115,12 @@ export class Game extends Component {
     busOrderWindow: number = 3;
     @property({ tooltip: "Số slot cố định trên ring" })
     ringSlotCount: number = 12;
+    @property({ tooltip: "Số row màu hồng xếp thành 1 dải liền nhau trên ring ngay lúc vào game (0 = tắt)" })
+    startPinkRows: number = 3;
+    @property({ tooltip: "Màu (index trong bảng màu xe/người) của dải hồng" })
+    startPinkColor: number = 4;
+    @property({ tooltip: "Góc (độ) tâm của dải hồng lúc bắt đầu — 0 = đỉnh ring, 180 = chính diện" })
+    startPinkAngle: number = 0;
     // Đảo chiều xoay ring (updateRingSlots/getSlotAngle) — bật vì chiều hiện tại đang ngược.
     @property({ tooltip: "Đảo chiều xoay ring" })
     ringReverse: boolean = true;
@@ -559,7 +565,7 @@ export class Game extends Component {
         let rows = this.fitRowsToBuses(LinearHumanData);
         if(this.rowOrder == RowOrder.LoopColors) rows = this.loopRowColors(rows);
         else if(this.rowOrder == RowOrder.BusOrder) rows = this.orderRowsByBuses();
-        this.data = rows;
+        this.data = this.placeStartPinkRows(rows);
         this.initRing();
         this.humans.forEach(h => {
             // if(this.humanSize.x * this.humanSize.y > 40*40) 
@@ -951,6 +957,30 @@ export class Game extends Component {
             active = active.filter(a => a.left > 0);
         }
         return result;
+    }
+
+    // Lấy startPinkRows row hồng đầu tiên trong `rows` đặt vào các slot ring gần startPinkAngle nhất
+    // (liền nhau) để lúc mới vào game ring có 1 dải hồng; các slot còn lại + hàng chờ giữ nguyên
+    // thứ tự cũ. Số row hồng tổng không đổi nên vẫn khớp sức chứa xe.
+    placeStartPinkRows(rows: ColorType[]): ColorType[] {
+        let n = this.ringSlotCount;
+        let pink: ColorType[] = [];
+        let others: ColorType[] = [];
+        rows.forEach(c => {
+            if(c == this.startPinkColor && pink.length < this.startPinkRows) pink.push(c);
+            else others.push(c);
+        });
+        if(pink.length == 0 || n <= 0) return rows;
+
+        let slots = Array.from({ length: n }, (_, i) => i)
+            .sort((a, b) => this.angleDist(this.getSlotAngle(a), this.startPinkAngle)
+                          - this.angleDist(this.getSlotAngle(b), this.startPinkAngle))
+            .slice(0, Math.min(pink.length, n));
+        let ring: ColorType[] = [];
+        for(let i = 0; i < n; i++) {
+            ring.push(slots.includes(i) ? pink.pop() : others.shift());
+        }
+        return [...ring.filter(c => c !== undefined), ...others];
     }
 
     fitRowsToBuses(data: ColorType[]): ColorType[] {
