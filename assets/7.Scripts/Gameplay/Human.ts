@@ -95,11 +95,10 @@ export class Human extends PoolMember {
         if(this.meshes.length == 0) {
             this.meshes = this.getComponentsInChildren(MeshRenderer).filter(m => m.node.name == "Color")
         }
+        // dùng setSharedMaterial: getter sharedMaterials trả về chính mảng nội bộ, sửa rồi gán lại
+        // thì setter không thấy khác -> người trên ring đổi màu lần 2 vẫn giữ màu cũ
         this.meshes.forEach((mesh) => {
-            let mats = mesh.sharedMaterials;
-            mats.pop();
-            mats.push(gm.humanMats[cl]);
-            mesh.sharedMaterials = mats;
+            mesh.setSharedMaterial(gm.humanMats[cl], mesh.sharedMaterials.length - 1);
         });
     }
 
