@@ -1217,12 +1217,14 @@ export class Game extends Component {
     }
 
     // Số ô trên ring thường không chia hết cho số row mỗi cụm nên chỗ nối vòng còn 1 cụm ngắn lẻ màu.
-    // Cụm chứa ô `slot` (ô được tô màu sau cùng) mà ngắn hơn loopRowsMin thì gộp vào cụm liền kề
+    // Ưu tiên gộp cụm lẻ nếu tổng không vượt loopRowsMax; nếu vượt thì mượn row từ cụm kế bên.
+    // Trước đây luôn gộp cả cụm nên một cụm 6..10 row có thể bị cộng thêm phần lẻ và dài hơn max.
     fixShortRuns(slot: number) {
         if(this.spawnMode != SpawnMode.ColorLoop) return;
         let cols = this.ringSlotColors, n = cols.length;
         if(!n || cols.some(c => c < 0)) return;
         let min = Math.max(1, Math.round(this.loopRowsMin));
+        let max = Math.max(min, Math.round(this.loopRowsMax));
         let start = 0;
         while(start < n && cols[start] == cols[(start - 1 + n) % n]) start++;
         if(start >= n) return;
@@ -1234,20 +1236,34 @@ export class Game extends Component {
             k += len;
         }
         if(runs.length < 2) return;
-        runs.forEach(([i, len], r) => {
-            if(len >= min) return;
-            if(((slot - i) % n + n) % n >= len) return;
-            // gộp vào cụm nằm cạnh thật trên đường: ô 0 và ô n-1 chỉ liền nhau qua chỗ dịch chuyển cuối -> đầu đường
+        for(let r = 0; r < runs.length; r++) {
+            let [i, len] = runs[r];
+            if(len >= min) continue;
+            if(((slot - i) % n + n) % n >= len) continue;
+            let old = cols[i];
+            // Chọn cụm nằm cạnh thật trên đường: ô 0 và ô n-1 chỉ liền nhau qua chỗ dịch chuyển cuối -> đầu đường.
             let touches0 = ((0 - i) % n + n) % n < len;
             let nb = touches0 ? runs[(r + 1) % runs.length] : runs[(r - 1 + runs.length) % runs.length];
-            let c = cols[nb[0]];
-            for(let j = 0; j < len; j++) {
-                let s = (i + j) % n;
+            let [nbStart, nbLen] = nb;
+            let paint = (s: number, c: number) => {
                 cols[s] = c;
                 let row = this.ringSlots[s];
                 if(row && row.color != c) this.recolorRow(row, c);
+            };
+            if(len + nbLen <= max) {
+                // Gộp vẫn nằm trong giới hạn max.
+                let c = cols[nbStart];
+                for(let j = 0; j < len; j++) paint((i + j) % n, c);
+            } else {
+                // Giữ thành hai cụm và chuyển vừa đủ row ở biên. Không làm cụm bên cạnh ngắn hơn min.
+                let take = Math.min(min - len, Math.max(0, nbLen - min));
+                for(let j = 0; j < take; j++) {
+                    let s = touches0 ? (nbStart + j) % n : (nbStart + nbLen - take + j) % n;
+                    paint(s, old);
+                }
             }
-        });
+            return;
+        }
     }
 
     recolorRow(row: RingRow, c: number) {
