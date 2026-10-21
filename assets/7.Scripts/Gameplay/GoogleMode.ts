@@ -6,6 +6,7 @@ const { ccclass, property, executeInEditMode, executionOrder } = _decorator;
  * Một ô tick gom nhiều thứ cần tắt cho bản Google:
  * `googleMode` = false: game như thường. `googleMode` = true: ẩn các node trong `hideNodes`
  * (nút tải...) và tắt các Animation trong `stopAnims` (lúc chạy game).
+ * Bản build kênh Google (PlayableSDK.channel = "Google") luôn áp dụng, không cần tick.
  *
  * Khi chạy game, các script khác có thể bật lại node (UI.showFirstOn bật nút tải sau tutorial)
  * hoặc phát lại animation (WinPopup phát anim nút), nên mỗi frame kiểm tra và tắt lại.
@@ -38,16 +39,25 @@ export class GoogleMode extends Component {
         if (EDITOR) this.applyInEditor();
     }
 
+    /** Lúc chạy game: bật nếu tick `googleMode` hoặc đang chạy bản build kênh Google. */
+    private applied = false;
+
     onLoad(): void {
         if (EDITOR) return;
-        // Chạy game: trả lại các node đã bị ẩn lúc tick trong editor, rồi áp dụng theo `googleMode`.
+        this.applied = this._googleMode || GoogleMode.isGoogleBuild();
+        // Chạy game: trả lại các node đã bị ẩn lúc tick trong editor, rồi áp dụng theo `applied`.
         for (const n of this.hiddenByMode) if (n?.isValid) n.active = true;
-        if (this._googleMode) this.enforce();
+        if (this.applied) this.enforce();
     }
 
     lateUpdate(): void {
-        if (EDITOR || !this._googleMode) return;
+        if (EDITOR || !this.applied) return;
         this.enforce();
+    }
+
+    /** Bản build kênh Google: playable-ads-builder gắn `PlayableSDK.channel = "Google"`. */
+    static isGoogleBuild(): boolean {
+        return typeof PlayableSDK !== 'undefined' && (PlayableSDK?.channel as string) === 'Google';
     }
 
     private enforce(): void {
