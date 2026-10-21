@@ -3205,7 +3205,7 @@
     "rimHeight": 0.055,
     "entranceLength": 1.1,
     "exitLength": 1,
-    "smoothStep": 8,
+    "smoothStep": 24,
     "lanes": 3,
     "rowSpacing": 0.23,
     "humanScale": 0.65,

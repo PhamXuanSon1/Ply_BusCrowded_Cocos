@@ -94,21 +94,32 @@
     {
       "tilingOffset": {
         "__type__": "cc.Vec4",
-        "x": 70,
-        "y": 35,
-        "z": 0,
+        "x": 3.3,
+        "y": 1,
+        "z": 0.83,
         "w": 0
+      },
+      "mainColor": {
+        "__type__": "cc.Color",
+        "r": 160,
+        "g": 160,
+        "b": 160,
+        "a": 255
+      },
+      "albedoScale": {
+        "__type__": "cc.Vec3",
+        "x": 0.4,
+        "y": 0.4,
+        "z": 0.4
       },
       "occlusion": 0.415,
       "roughness": 1,
       "specularIntensity": 0,
       "mainTexture": {
-        "__uuid__": "be4e8690-6bec-4a3a-a7c6-4fe063a6031e@6c48a",
+        "__uuid__": "7218cd40-ffe1-40a4-b109-5654329c1c0d@6c48a",
         "__expectedType__": "cc.Texture2D"
       },
-      "brightness": -0.045,
-      "contrast": 2,
-      "hue": 1
+      "saturation": 2.2
     },
     {},
     {},

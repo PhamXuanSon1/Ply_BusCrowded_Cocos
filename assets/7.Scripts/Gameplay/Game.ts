@@ -985,6 +985,8 @@ export class Game extends Component {
     ringExit: number[] = null;
     // scale gốc của từng người trên ring (fade nhân vào đây)
     humanBaseScale = new Map<Human, number>();
+    // editor: hẹn giờ xếp lại người sau khi Line3DRing dựng lại (0 = không có)
+    ringRelayoutTimer = 0;
 
     ringMode() {
         return !!this.line3DRing?.isValid && this.line3DRing.enabledInHierarchy;
@@ -1015,6 +1017,10 @@ export class Game extends Component {
         this.ringScale = this.human.worldScale.x / road.node.worldScale.x * this.ringHumanScale;
         c.setScale(this.ringScale, this.ringScale, this.ringScale);
         this.ringContainer = c;
+        if(EDITOR_NOT_IN_PREVIEW) {
+            road.node.off(Line3DRing.REBUILT, this.onRingRebuilt, this);
+            road.node.on(Line3DRing.REBUILT, this.onRingRebuilt, this);
+        }
 
         const sp = Math.max(0.05, this.ringRowSpacing);
         const count = Math.max(1, Math.floor(road.totalLength / sp));
@@ -2152,9 +2158,27 @@ export class Game extends Component {
         this.getBFS(founded, unchecked, max - neighbors.length, color);
     }
 
+    // editor: đổi height / radius / kéo Point... -> xếp lại người khi ngừng chỉnh 150ms (xếp mỗi frame rất lag).
+    // Dùng setTimeout vì scene editor không tick update liên tục khi đứng yên.
+    onRingRebuilt() {
+        clearTimeout(this.ringRelayoutTimer);
+        this.ringRelayoutTimer = setTimeout(() => {
+            this.ringRelayoutTimer = 0;
+            if(!this.isValid || !this.line3DRing?.isValid) return;
+            // vị trí ô tính theo tỉ lệ totalLength nên chỉ cần lấy lại lối ra rồi xếp lại theo đường mới
+            this.ringExit = this.line3DRing.getExitRange();
+            this.updateRing(0);
+            (globalThis as any).cce?.Engine?.repaintInEditMode?.();
+        }, 150) as any;
+    }
+
     update(deltaTime: number) {
-        // editor: không xếp lại người khi chỉnh Line3DRing (rất lag) — người chỉ cập nhật khi Game init lại (lưu script / mở lại scene)
         if(!EDITOR_NOT_IN_PREVIEW) this.updateRing(deltaTime);
+    }
+
+    onDestroy() {
+        clearTimeout(this.ringRelayoutTimer);
+        if(this.line3DRing?.isValid) this.line3DRing.node.off(Line3DRing.REBUILT, this.onRingRebuilt, this);
     }
 }
 

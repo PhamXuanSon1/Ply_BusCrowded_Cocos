@@ -24,7 +24,7 @@ export class Line3DRing extends Component {
     @property({ min: 0, tooltip: 'Tường mép ngoài, cao hơn gờ trong để thành tháp nhìn dày như ảnh mẫu.' }) outerWallHeight = 0.16;
     @property({ min: 0 }) entranceLength = 3;
     @property({ min: 0 }) exitLength = 2.5;
-    @property({ type: CCInteger, min: 4, max: 24 }) smoothStep = 8;
+    @property({ type: CCInteger, min: 4, max: 24 }) smoothStep = 24;
     @property({ tooltip: 'Bật để dựng đường theo các node con của Points (kéo tay được). Đổi thông số xoắn ốc sẽ rải lại các point theo hình mới.' })
     useCustomPoints = false;
     @property(Node) pointNodes: Node = null;
