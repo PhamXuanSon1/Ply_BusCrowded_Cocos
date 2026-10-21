@@ -131,6 +131,7 @@ export class Game extends Component {
     slots: Slot[] = [];
     humans: Human[] = [];
     movingHumans: Human[] = [];
+    movingHumanRoot: Node = null;
 
     first: boolean = true;
 
@@ -1403,8 +1404,7 @@ export class Game extends Component {
                 h.bus = bus;
                 h.pTween?.stop();
                 h.rTween?.stop();
-                Ulis.addToParent(h.node, this.human);
-                h.node.eulerAngles = v3(0, 0, h.node.eulerAngles.z);
+                Ulis.addToParent(h.node, this.getMovingHumanRoot());
                 if(s !== undefined) h.node.setScale(s, s, s);
             });
             bus.packing = true;
@@ -2047,14 +2047,33 @@ export class Game extends Component {
     loseCheckTween: Tween<any> = null;
 
     // fromRing: người vừa rời lối ra của ring -> đi qua các exitPoints (nếu có) rồi vào xe
+    getMovingHumanRoot(): Node {
+        if(!this.movingHumanRoot?.isValid) {
+            this.movingHumanRoot = new Node("MovingHumans");
+            this.movingHumanRoot.parent = this.node;
+            this.movingHumanRoot._objFlags = CCObject.Flags.DontSave;
+        }
+        // Giữ cùng hệ tọa độ/kích thước với node Human gốc, nhưng root này luôn active.
+        this.movingHumanRoot.setPosition(this.human.position);
+        this.movingHumanRoot.setRotation(this.human.rotation);
+        this.movingHumanRoot.setScale(this.human.scale);
+        this.movingHumanRoot.layer = this.human.layer;
+        this.movingHumanRoot.active = true;
+        return this.movingHumanRoot;
+    }
+
     moveHuman(human: Human, bus: Bus, fromRing: boolean = false) {
         human.setMoving(true);
-        Ulis.addToParent(human.node, this.human);
+        // Ở ring mode, node Human gốc chỉ là template và đang inactive. Chuyển người từ
+        // RingHumans sang node đó sẽ làm họ biến mất ngay khi bước ra khỏi ring. Dùng một root
+        // active có cùng transform với Human để giữ nguyên cả world position lẫn kích thước.
+        let movingParent = fromRing ? this.getMovingHumanRoot() : this.human;
+        if(human.node.parent != movingParent) Ulis.addToParent(human.node, movingParent);
         human.node.eulerAngles = v3(0, 0, human.node.eulerAngles.z);
         let points: Vec3[] = [];
         if(fromRing) {
             this.exitPoints.forEach(n => {
-                if(n?.isValid) points.push(this.human.inverseTransformPoint(v3(), n.worldPosition));
+                if(n?.isValid) points.push(movingParent.inverseTransformPoint(v3(), n.worldPosition));
             });
         }
         if(!points.length) {
