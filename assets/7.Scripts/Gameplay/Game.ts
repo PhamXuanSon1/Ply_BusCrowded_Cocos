@@ -65,7 +65,9 @@ export class Game extends Component {
     clicksToStore: number = 12;
     count: number = 0;
     progress: number = 0;
-    @property({ group: G_STORE, tooltip: "Số giây chờ kể từ lúc vào game, nếu người chơi vẫn chưa bấm lần nào thì hiện tay hướng dẫn (tut).\nBấm trước thời gian này thì không hiện." })
+    @property({ group: G_STORE, tooltip: "Bật/tắt tay hướng dẫn (hand tutorial).\nTắt thì không hiện tay ở bất kỳ đâu; Intro vẫn khoanh sáng xe đầu tiên trong Tap Indices." })
+    useHand: boolean = true;
+    @property({ group: G_STORE, visible() { return this.useHand; }, tooltip: "Số giây chờ kể từ lúc vào game, nếu người chơi vẫn chưa bấm lần nào thì hiện tay hướng dẫn (tut).\nBấm trước thời gian này thì không hiện." })
     tutTime: number = 3;
     @property({ group: G_STORE, type: Animation, tooltip: "Animation báo hết slot trống (Bus.ts gọi play() khi bấm xe mà không còn slot để đỗ)." })
     noSlot: Animation = null!
@@ -469,6 +471,7 @@ export class Game extends Component {
 
     tut() {
         ui?.offHand();
+        if(!this.useHand) return;
         if(this.taps[0]) {
             ui?.handTap(this.taps[0]);
             return;
