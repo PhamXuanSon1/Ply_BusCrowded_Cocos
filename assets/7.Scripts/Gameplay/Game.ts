@@ -524,7 +524,7 @@ export class Game extends Component {
 
     init() {
         if(!EDITOR_NOT_IN_PREVIEW) {
-            this.node.eulerAngles = v3(-25, 0, 0);
+            this.node.eulerAngles = v3(-30, 0, 0);
         }
         this.initLayers();
         this.initTouch();
