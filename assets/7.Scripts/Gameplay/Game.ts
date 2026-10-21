@@ -35,6 +35,14 @@ Enum(FillMode);
 
 const { ccclass, property, executeInEditMode } = _decorator;
 
+// Nhóm (header) hiển thị trong Inspector
+const G_STORE = { name: "Store & Hướng dẫn", id: "store", displayOrder: 1, style: "section" };
+const G_LOOK = { name: "Màu & Hiển thị người", id: "look", displayOrder: 2, style: "section" };
+const G_SPAWN = { name: "Sinh người lên ring", id: "spawn", displayOrder: 3, style: "section" };
+const G_RING = { name: "Ring xoắn ốc", id: "ring", displayOrder: 4, style: "section" };
+const G_INTRO = { name: "Intro (màn tối + khung sáng)", id: "intro", displayOrder: 5, style: "section" };
+const G_TOOL = { name: "Công cụ Editor", id: "tool", displayOrder: 6, style: "section" };
+
 export var gm: Game = null;
 
 // 1 row người đang chạy trên Line3DRing (ô cố định trong Game.ringSlots, cả row cùng màu)
@@ -53,25 +61,25 @@ export class RingRow {
 @ccclass('Game')
 @executeInEditMode(true)
 export class Game extends Component {
-    @property({ tooltip: "Số lần bấm xe để chuyển sang Store (native ép thành 9999)" })
+    @property({ group: G_STORE, tooltip: "Số lần bấm xe để mở Store.\n- Mỗi lần bấm 1 xe đi ra (count++) được tính 1 lần.\n- Đủ số này HOẶC tiến độ đạt 100% (hết xe) thì khoá chạm và gọi ui.bindingToStore().\n- Bản native tự ép thành 9999 (không mở Store giữa chừng)." })
     clicksToStore: number = 12;
     count: number = 0;
     progress: number = 0;
-    @property({ tooltip: "Số giây chờ trước khi hiện tay hướng dẫn" })
+    @property({ group: G_STORE, tooltip: "Số giây chờ kể từ lúc vào game, nếu người chơi vẫn chưa bấm lần nào thì hiện tay hướng dẫn (tut).\nBấm trước thời gian này thì không hiện." })
     tutTime: number = 3;
-    @property({ type: Animation, tooltip: "Animation phát khi hết slot trống" })
+    @property({ group: G_STORE, type: Animation, tooltip: "Animation báo hết slot trống (Bus.ts gọi play() khi bấm xe mà không còn slot để đỗ)." })
     noSlot: Animation = null!
     humanSize: Vec2 = v2(47, 52);
-    @property({ type: [CCInteger], tooltip: "Index các xe (trong buses) mà tay hướng dẫn chỉ vào lần lượt" })
+    @property({ group: G_STORE, type: [CCInteger], tooltip: "Index các xe (theo thứ tự mảng buses = thứ tự BusData) mà tay hướng dẫn chỉ vào lần lượt.\n- Phần tử đầu cũng là xe được khoanh sáng ở Intro.\n- Bấm đúng xe đang chỉ thì tay chuyển sang xe tiếp theo.\n- Lưu ý: sau khi Save Bus Data hoặc đổi map, kiểm tra lại index còn trỏ đúng xe đi được không." })
     tapIndices: number[] = [105];
     introBus: Node = null;
     humanDis: Vec2 = v2(0.255, 0.255);
     disHuman: number = 0.016;
     disMul: Vec2 = v2(0.016, 0.016);
-    @property({ type: SpriteFrame, tooltip: "Sprite người màu đen (chế độ 2D)" })
+    @property({ group: G_LOOK, type: SpriteFrame, tooltip: "Sprite người màu đen, chỉ dùng khi bật human2D (Human.ts gán cho người màu Black)." })
     blackHuman: SpriteFrame = null!;
 
-    @property({ type: [Color], tooltip: "Bảng màu gốc, index tương ứng ColorType — không đổi thứ tự" })
+    @property({ group: G_LOOK, type: [Color], tooltip: "Bảng màu dùng chung cho xe và người.\n- Index phải khớp enum ColorType trong Data.ts (0 = White, 1 = Gray, ...).\n- BusData / LinearHumanData lưu màu theo index này nên KHÔNG đổi thứ tự / chèn giữa; chỉ chỉnh giá trị màu." })
     colors: Color[] = [];
 
     boxMats: Material[] = [];
@@ -89,42 +97,42 @@ export class Game extends Component {
     brain: Node = null;
     brainText: Label = null!;
 
-    @property({ tooltip: "Số người trong 1 row" })
+    @property({ group: G_SPAWN, tooltip: "Số người đứng ngang trong 1 row trên ring (cả row cùng màu).\n- Bề ngang đường Line3DRing tự tính = humanPerRow * ringLaneGap + 2 gờ.\n- Xe lấy người theo row, nên số ghế xe nên là bội số của số này." })
     humanPerRow: number = 4;
-    @property({ type: SpawnMode, tooltip: "Data: màu row theo LinearHumanData (đúng số row mỗi màu, sắp theo rowOrder), hết thì lấp theo fillMode. ColorLoop: mỗi màu ra liền 1 cụm loopRowsMin..loopRowsMax row, lần lượt theo màu các xe, hết vòng thì quay lại màu đầu (người vô hạn)" })
+    @property({ group: G_SPAWN, type: SpawnMode, tooltip: "Cách chọn màu cho row mới sinh trên ring:\n- Data: theo LinearHumanData, đúng số row mỗi màu = số ghế xe màu đó, sắp theo Row Order. Phát hết thì lấp ô trống theo Fill Mode.\n- ColorLoop: mỗi màu ra liền 1 cụm Loop Rows Min..Max row, lần lượt theo màu các xe, hết vòng quay lại màu đầu (người vô hạn, không bao giờ hết)." })
     spawnMode: SpawnMode = SpawnMode.ColorLoop;
-    @property({ type: Enum(RowOrder), visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "Thứ tự row: Data = giữ nguyên data; LoopColors = màu 0..7 xoay vòng; BusOrder = người của xe đang thoát được tới trước (dễ thắng)" })
+    @property({ group: G_SPAWN, type: Enum(RowOrder), visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Thứ tự các row:\n- Data: giữ nguyên thứ tự LinearHumanData.\n- LoopColors: màu 0..7 xoay vòng, mỗi lượt Rows Per Color row.\n- BusOrder: người của các xe đang thoát được (theo ObstacleData) ra trước → dễ thắng, luôn có cách giải." })
     rowOrder: RowOrder = RowOrder.BusOrder;
-    @property({ visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "Số row liên tiếp cùng màu khi xoay vòng màu (0 = giữ nguyên thứ tự LinearHumanData)" })
+    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Số row liên tiếp cùng màu mỗi lượt khi xoay vòng màu (LoopColors / BusOrder).\n0 = giữ nguyên thứ tự LinearHumanData." })
     rowsPerColor: number = 4;
-    @property({ visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "BusOrder: số xe được xen kẽ row cùng lúc" })
+    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data + BusOrder) Số xe được xen kẽ row cùng lúc.\n1 = phát hết người của xe này mới sang xe sau; lớn hơn = các màu đan xen nhiều hơn, khó hơn." })
     busOrderWindow: number = 3;
-    @property({ type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "ColorLoop: số row ít nhất của 1 cụm cùng màu" })
+    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row ít nhất của 1 cụm cùng màu." })
     loopRowsMin: number = 4;
-    @property({ type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "ColorLoop: số row nhiều nhất của 1 cụm cùng màu (chọn ngẫu nhiên trong khoảng min..max)" })
+    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row nhiều nhất của 1 cụm cùng màu.\nMỗi cụm chọn ngẫu nhiên trong khoảng Min..Max; đặt Min = Max để mọi cụm dài bằng nhau." })
     loopRowsMax: number = 4;
-    @property({ visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "Tắt: màu hết xe vẫn giữ nguyên trên ring, chuỗi màu quay đều mọi màu trong màn. Bật: màu hết xe thì đổi ngay cả cụm sang màu còn cần và bỏ khỏi chuỗi màu" })
+    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Xử lý màu đã hết xe cần người:\n- Tắt: cụm màu đó vẫn chạy trên ring, chuỗi màu vẫn quay đều mọi màu trong màn.\n- Bật: đổi ngay cả cụm sang màu còn cần và bỏ màu đó khỏi chuỗi → ring chỉ còn màu có ích, dễ thắng hơn." })
     recolorFinished: boolean = false;
-    @property({ type: FillMode, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "Khi đã sinh hết row cho mọi xe mà ring còn ô trống: None = để trống, WinColors = lấp bằng màu xe còn chờ người, LevelColors = lấp bằng mọi màu trong màn" })
+    @property({ group: G_SPAWN, type: FillMode, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Khi đã phát hết row cho mọi xe mà ring còn ô trống:\n- None: để trống.\n- WinColors: lấp bằng màu các xe còn chờ người (dư người giúp thắng).\n- LevelColors: lấp bằng mọi màu có trong màn." })
     fillMode: FillMode = FillMode.LevelColors;
 
-    @property({ type: Line3DRing, tooltip: "Đường xoắn ốc người chạy vòng. Row đi qua lối ra (exitFromPoint→exitToPoint của Line3DRing) mà cùng màu xe trong slot thì lên xe, tới cuối đường thì quay về đầu vào" })
+    @property({ group: G_RING, type: Line3DRing, tooltip: "Đường xoắn ốc (component Line3DRing) mà người chạy vòng.\n- Row đi qua lối ra (exitFromPoint → exitToPoint của Line3DRing) mà cùng màu xe đang đỗ trong slot thì xuống lên xe.\n- Tới cuối đường thì thu nhỏ rồi hiện lại ở đầu vào.\n- Để trống / tắt node = không dùng ring." })
     line3DRing: Line3DRing = null;
-    @property({ tooltip: "Tốc độ chạy của row trên ring (đơn vị local của Line3DRing / giây)" })
+    @property({ group: G_RING, tooltip: "Tốc độ chạy của row trên ring (đơn vị local của Line3DRing / giây).\nCũng quyết định nhịp người đi qua lối ra lên xe." })
     ringSpeed: number = 1;
-    @property({ tooltip: "Bật: người chạy từ point cuối về point 0. Tắt: từ point 0 tới point cuối" })
+    @property({ group: G_RING, tooltip: "Chiều chạy:\n- Bật: từ point cuối về point 0.\n- Tắt: từ point 0 tới point cuối (theo thứ tự node con của Points trong Line3DRing)." })
     ringReverse: boolean = true;
-    @property({ tooltip: "Khoảng cách giữa 2 row liên tiếp trên ring (local Line3DRing). Lớn hơn = ít người hơn, nhẹ hơn" })
+    @property({ group: G_RING, tooltip: "Khoảng cách giữa 2 row liên tiếp trên ring (đơn vị local Line3DRing).\nSố ô = chiều dài đường / giá trị này → lớn hơn = ít người hơn, nhẹ hơn (mỗi người là 1 sprite/mesh)." })
     ringRowSpacing: number = 0.45;
-    @property({ tooltip: "Khoảng cách ngang giữa 2 người cạnh nhau trong row trên ring (local Line3DRing)" })
+    @property({ group: G_RING, tooltip: "Khoảng cách ngang giữa 2 người cạnh nhau trong row (đơn vị local Line3DRing).\nĐổi giá trị này thì bề ngang đường Line3DRing cũng đổi theo." })
     ringLaneGap: number = 0.3;
-    @property({ range: [0, 1, 0.05], slide: true, tooltip: "Tỉ lệ ô trên ring có sẵn người lúc bắt đầu (ô trống được lấp dần ở đầu vào)" })
+    @property({ group: G_RING, range: [0, 1, 0.05], slide: true, tooltip: "Tỉ lệ ô trên ring có sẵn người lúc bắt đầu (0..1).\n1 = kín đường ngay từ đầu; nhỏ hơn thì phần trống được lấp dần ở đầu vào khi ring chạy." })
     ringPrefill: number = 1;
-    @property({ tooltip: "Phóng to người trên ring so với người ở node Human (1 = cùng cỡ)" })
+    @property({ group: G_RING, tooltip: "Phóng to người trên ring so với người ở node Human (chỗ người đi ra xe).\n1 = cùng cỡ thế giới." })
     ringHumanScale: number = 1.2;
-    @property({ tooltip: "Quãng đường thu nhỏ/hiện dần ở cuối và đầu đường khi row quay về đầu vào" })
+    @property({ group: G_RING, tooltip: "Quãng đường (local Line3DRing) mà row thu nhỏ dần ở cuối đường và hiện dần ở đầu vào khi quay vòng.\n0 = biến mất / hiện ra tức thì." })
     ringFade: number = 0.6;
-    @property({ type: [Node], tooltip: "Các điểm người đi qua theo thứ tự sau khi rời lối ra của ring, rồi đi vào xe. Để trống = đi thẳng tới xe" })
+    @property({ group: G_RING, type: [Node], tooltip: "Các điểm người đi qua theo thứ tự sau khi rời lối ra của ring, rồi mới đi vào xe.\nĐể trống = đi thẳng từ lối ra tới xe." })
     exitPoints: Node[] = [];
 
     buses: Bus[] = [];
@@ -158,18 +166,18 @@ export class Game extends Component {
     taps: Node[] = [];
     tutTween: Tween<any> = null!;
 
-    @property({ tooltip: "Bật: người dùng sprite 2D; tắt: model 3D + shadow" })
+    @property({ group: G_LOOK, tooltip: "Kiểu hiển thị người:\n- Bật: sprite 2D (nhẹ, hợp playable nhiều người).\n- Tắt: model 3D có animation + bóng.\nĐổi xong cần mở lại scene / chạy lại để người được sinh lại." })
     human2D: boolean = false;
-    @property({ tooltip: "Chế độ chỉnh level: bấm xe để xoay, A đổi kiểu xoay, Space lưu BusData" })
+    @property({ group: G_TOOL, tooltip: "Chế độ chỉnh level khi chạy preview (không dùng khi build thật):\n- Bấm xe để xoay thay vì cho xe chạy.\n- Phím A: đổi kiểu xoay (180° → 90° → góc thường).\n- Phím Space: lưu BusData (như Save Bus Data, nhưng chỉ in ra console)." })
     tool: boolean = false;
 
-    @property({ tooltip: "Tick để xuất ảnh pixel người ra Human.png" })
+    @property({ group: G_TOOL, tooltip: "Tick để xuất dữ liệu pixel người hiện tại ra file Human.png (công cụ, không lưu giá trị)." })
     set savePNG(v: boolean) {
         savePNG(this.tData, this.humanSize.x, this.humanSize.y, "Human.png");
     }
     get savePNG() { return false; }
 
-    @property({ tooltip: "Tick để lưu xe trên scene (vị trí, góc, màu, kiểu xe) vào Data.ts — tự tính lại Obstacle Data + Linear Human Data, dựng lại xe và cập nhật ngay" })
+    @property({ group: G_TOOL, tooltip: "Tick để lưu toàn bộ xe đang có trên scene vào Data.ts:\n- Ghi BusData (kiểu xe, màu, vị trí, góc).\n- Tự tính lại ObstacleData (xe nào chặn xe nào) và LinearHumanData (người theo số ghế xe).\n- Dựng lại xe từ data mới ngay trong editor.\nNhớ lưu scene sau khi chỉnh xe, và kiểm tra lại Tap Indices." })
     set saveBusData(v: boolean) {
         this.saveBuses();
     }
@@ -279,17 +287,17 @@ export class Game extends Component {
         this.scheduleOnce(() => this.autoEndIntro(), this.introDuration);
     }
 
-    @property({ tooltip: "Số giây màn tối intro tự tắt (không cần bấm)" })
+    @property({ group: G_INTRO, tooltip: "Số giây màn tối intro tự tắt (không cần bấm).\nIntro phủ tối cả màn, chỉ chừa khung sáng quanh xe đầu tiên trong Tap Indices." })
     introDuration: number = 2.5;
-    @property({ tooltip: "Khoảng hở từ xe tới viền khung (tỉ lệ cạnh ngắn của xe)" })
+    @property({ group: G_INTRO, tooltip: "Khoảng hở từ xe tới viền khung sáng, tính theo tỉ lệ cạnh ngắn của xe (0.2 = 20% bề ngang xe)." })
     spotPadding: number = 0.2;
-    @property({ tooltip: "Bo góc khung (tỉ lệ cạnh ngắn của xe)" })
+    @property({ group: G_INTRO, tooltip: "Bán kính bo góc khung sáng, tỉ lệ cạnh ngắn của xe (0 = góc vuông)." })
     spotCorner: number = 0.25;
-    @property({ tooltip: "Độ dày viền trắng (tỉ lệ cạnh ngắn của xe)" })
+    @property({ group: G_INTRO, tooltip: "Độ dày viền trắng của khung, tỉ lệ cạnh ngắn của xe." })
     spotLine: number = 0.08;
-    @property({ tooltip: "Độ loang của quầng sáng trắng ngoài viền (tỉ lệ cạnh ngắn của xe)" })
+    @property({ group: G_INTRO, tooltip: "Độ loang của quầng sáng trắng bên ngoài viền, tỉ lệ cạnh ngắn của xe (0 = không có quầng)." })
     spotGlow: number = 0.5;
-    @property({ tooltip: "Độ sáng quầng trắng ngoài viền (0-1)" })
+    @property({ group: G_INTRO, range: [0, 1, 0.05], slide: true, tooltip: "Độ sáng của quầng trắng ngoài viền (0 = tắt, 1 = trắng đặc)." })
     spotGlowAlpha: number = 0.6;
     introSpot: Node = null;
 
