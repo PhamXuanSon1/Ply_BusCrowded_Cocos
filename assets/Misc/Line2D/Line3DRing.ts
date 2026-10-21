@@ -210,7 +210,10 @@ export class Line3DRing extends Component {
     private findExitSamples(): number[] {
         const nodes = this.pointNodes?.children;
         if (!nodes || this.exitFromPoint < 0 || this.exitToPoint < 0) return null;
-        const a = nodes[this.exitFromPoint], b = nodes[this.exitToPoint];
+        // Một số scene giữ tên point theo số thứ tự cũ nên tên và child index có thể lệch nhau.
+        // Ưu tiên tìm theo tên hiển thị trong Hierarchy (VD 38 → 40), rồi mới fallback về index.
+        const nodeAt = (key: number) => nodes.find(n => Number(n.name) === key) || nodes[key];
+        const a = nodeAt(this.exitFromPoint), b = nodeAt(this.exitToPoint);
         if (!a || !b || this.samples.length < 2) return null;
         const nearest = (n: Node) => {
             const p = this.node.inverseTransformPoint(new Vec3(), n.worldPosition);

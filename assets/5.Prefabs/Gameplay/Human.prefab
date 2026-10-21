@@ -1810,7 +1810,7 @@
       "__uuid__": "caf254b7-860b-4eeb-a941-5687ac49e4bf@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
-    "_type": 1,
+    "_type": 0,
     "_fillType": 0,
     "_sizeMode": 0,
     "_fillCenter": {
