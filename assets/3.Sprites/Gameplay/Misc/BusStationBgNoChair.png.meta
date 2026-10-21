@@ -2,7 +2,7 @@
   "ver": "1.0.27",
   "importer": "image",
   "imported": true,
-  "uuid": "d819be9a-8ee9-478d-bca8-0a8370f1905a",
+  "uuid": "c52eee4f-cda7-48ce-b340-c1653d66c896",
   "files": [
     ".json",
     ".png"
@@ -10,14 +10,14 @@
   "subMetas": {
     "6c48a": {
       "importer": "texture",
-      "uuid": "d819be9a-8ee9-478d-bca8-0a8370f1905a@6c48a",
-      "displayName": "Pastel Green Park with Benches - No Road - Lower Decor",
+      "uuid": "c52eee4f-cda7-48ce-b340-c1653d66c896@6c48a",
+      "displayName": "BusStationBgNoChair",
       "id": "6c48a",
       "name": "texture",
       "userData": {
-        "wrapModeS": "repeat",
-        "wrapModeT": "repeat",
-        "imageUuidOrDatabaseUri": "d819be9a-8ee9-478d-bca8-0a8370f1905a",
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "imageUuidOrDatabaseUri": "c52eee4f-cda7-48ce-b340-c1653d66c896",
         "isUuid": true,
         "visible": false,
         "minfilter": "linear",
@@ -34,8 +34,8 @@
     },
     "f9941": {
       "importer": "sprite-frame",
-      "uuid": "d819be9a-8ee9-478d-bca8-0a8370f1905a@f9941",
-      "displayName": "Pastel Green Park with Benches - No Road - Lower Decor",
+      "uuid": "c52eee4f-cda7-48ce-b340-c1653d66c896@f9941",
+      "displayName": "BusStationBgNoChair",
       "id": "f9941",
       "name": "spriteFrame",
       "userData": {
@@ -45,9 +45,9 @@
         "offsetY": 0,
         "trimX": 0,
         "trimY": 0,
-        "width": 1442,
+        "width": 1461,
         "height": 1091,
-        "rawWidth": 1442,
+        "rawWidth": 1461,
         "rawHeight": 1091,
         "borderTop": 0,
         "borderBottom": 0,
@@ -60,16 +60,16 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -721,
+            -730.5,
             -545.5,
             0,
-            721,
+            730.5,
             -545.5,
             0,
-            -721,
+            -730.5,
             545.5,
             0,
-            721,
+            730.5,
             545.5,
             0
           ],
@@ -84,11 +84,11 @@
           "uv": [
             0,
             1091,
-            1442,
+            1461,
             1091,
             0,
             0,
-            1442,
+            1461,
             0
           ],
           "nuv": [
@@ -102,18 +102,18 @@
             1
           ],
           "minPos": [
-            -721,
+            -730.5,
             -545.5,
             0
           ],
           "maxPos": [
-            721,
+            730.5,
             545.5,
             0
           ]
         },
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "d819be9a-8ee9-478d-bca8-0a8370f1905a@6c48a",
+        "imageUuidOrDatabaseUri": "c52eee4f-cda7-48ce-b340-c1653d66c896@6c48a",
         "atlasUuid": "",
         "trimType": "auto"
       },
@@ -129,6 +129,6 @@
     "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
     "hasAlpha": false,
-    "redirect": "d819be9a-8ee9-478d-bca8-0a8370f1905a@6c48a"
+    "redirect": "c52eee4f-cda7-48ce-b340-c1653d66c896@6c48a"
   }
 }

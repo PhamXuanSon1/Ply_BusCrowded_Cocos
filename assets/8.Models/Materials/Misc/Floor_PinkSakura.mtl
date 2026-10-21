@@ -94,7 +94,7 @@
     {
       "tilingOffset": {
         "__type__": "cc.Vec4",
-        "x": 5,
+        "x": 1,
         "y": 1,
         "z": 0,
         "w": -0.5
@@ -116,7 +116,7 @@
       "roughness": 1,
       "specularIntensity": 0,
       "mainTexture": {
-        "__uuid__": "6a8530dd-da0c-4124-98af-158c61ae7b6f@6c48a",
+        "__uuid__": "734694b5-d78f-4e97-a879-eb7594d2645a@6c48a",
         "__expectedType__": "cc.Texture2D"
       },
       "saturation": 1.1
