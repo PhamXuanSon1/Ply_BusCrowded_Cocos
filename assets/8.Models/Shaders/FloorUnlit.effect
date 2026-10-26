@@ -1,0 +1,64 @@
+// Unlit cho ảnh nền sàn (Floor_*): hiện đúng màu texture, không ánh sáng.
+// mipBias < 0 kéo mipmap về level nét hơn: bật mipmap để hết nhiễu moiré khi thu nhỏ,
+// nhưng không bị mờ như trilinear mặc định. Càng âm càng nét (quá âm sẽ nhiễu lại).
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      properties: &props
+        mainTexture:    { value: grey }
+        tilingOffset:   { value: [1, 1, 0, 0] }
+        mainColor:      { value: [1, 1, 1, 1], linear: true, editor: { type: color } }
+        mipBias:        { value: -0.75, target: params.x, editor: { slide: true, range: [-2.0, 0.0], step: 0.01 } }
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      phase: deferred-forward
+      propertyIndex: 0
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <legacy/input>
+  #include <builtin/uniforms/cc-global>
+  #include <legacy/decode-base>
+  #include <legacy/local-batch>
+
+  out vec2 v_uv;
+  uniform TexCoords {
+    vec4 tilingOffset;
+  };
+
+  vec4 vert () {
+    vec4 position;
+    CCVertInput(position);
+
+    mat4 matWorld;
+    CCGetWorldMatrix(matWorld);
+
+    v_uv = a_texCoord * tilingOffset.xy + tilingOffset.zw;
+    return cc_matProj * (cc_matView * matWorld) * position;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+  #include <legacy/output-standard>
+
+  in vec2 v_uv;
+  uniform sampler2D mainTexture;
+
+  uniform Constant {
+    vec4 mainColor;
+    vec4 params; // x: mipBias
+  };
+
+  vec4 frag () {
+    vec4 o = mainColor;
+    vec4 texColor = texture(mainTexture, v_uv, params.x);
+    texColor.rgb = SRGBToLinear(texColor.rgb);
+    o *= texColor;
+    return CCFragOutput(o);
+  }
+}%
