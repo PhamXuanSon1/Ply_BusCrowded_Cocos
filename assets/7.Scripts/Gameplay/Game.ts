@@ -214,7 +214,7 @@ export class Game extends Component {
     get saveBusData() { return false; }
 
     @property
-    private _busScale: number = 1;
+    private _busScale: number = 1.2;
     @property({ group: G_TOOL, min: 0.1, step: 0.01, tooltip: "Kích thước xe (scale node của từng xe trong Bus), không đổi vị trí / hướng / số lượng xe.\n- Va chạm (Bus.size) phóng theo nên ObstacleData phải tính lại: đổi xong tick Save Bus Data.\n- Xe vào slot vẫn giữ cỡ cũ." })
     get busScale() { return this._busScale; }
     set busScale(v: number) {
