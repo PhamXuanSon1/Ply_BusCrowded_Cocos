@@ -1,86 +1,83 @@
-# Commit Prefix Reference
+# Bảng Tra Cứu Commit Prefix (Conventional Commits)
 
-## Prefix一覧
+Tài liệu hướng dẫn chọn Prefix chuẩn cho Git Commit, áp dụng cho toàn bộ dự án và quy trình làm việc.
 
-| Prefix       | 用途                   | 説明                                                         |
-| ------------ | ---------------------- | ------------------------------------------------------------ |
-| **fix**      | バグ修正               | コードの不具合を修正するコミット                             |
-| **hotfix**   | クリティカルなバグ修正 | サービス停止レベルの緊急バグ対応                             |
-| **add**      | 新規機能追加           | 新しいファイルや小規模機能を追加するコミット                 |
-| **feat**     | 新機能                 | ユーザー向けの大きな機能追加または変更                       |
-| **update**   | 機能修正               | 既存機能に対する修正・改善（バグ修正ではない）               |
-| **change**   | 仕様変更               | 仕様そのものを変更するコミット                               |
-| **clean**    | 整理                   | 使われていないコードの削除や軽微な整理                       |
-| **disable**  | 無効化                 | 機能を一時的に無効化（コメントアウト等）                     |
-| **refactor** | リファクタリング       | 挙動を変えずに内部構造のみ改善                               |
-| **remove**   | 削除                   | ファイル・ライブラリ・機能を削除するコミット                 |
-| **upgrade**  | バージョンアップ       | 依存ライブラリや FW のメジャーアップデート                   |
-| **revert**   | 変更取り消し           | 以前のコミットを打ち消すコミット                             |
-| **docs**     | ドキュメント           | README やコメントのみの変更                                  |
-| **style**    | スタイル修正           | コードフォーマット、空白、セミコロンなど動作に影響しない変更 |
-| **perf**     | パフォーマンス         | パフォーマンス改善のための実装変更                           |
-| **test**     | テスト                 | テストコードの追加・更新・リファクタ                         |
-| **build**    | ビルド                 | ビルドシステムや外部依存の変更                               |
-| **ci**       | CI                     | CI設定の変更                                                 |
-| **chore**    | 雑多メンテ             | ビルド、CI、依存更新など本番コードに影響しない作業           |
+---
 
-## Prefix選択ガイドライン
+## Danh Sách Prefix Chuẩn
 
-### バグ関連
-- 通常のバグ → `fix`
-- 本番環境で重大な影響 → `hotfix`
+| Prefix       | Phân loại               | Ý nghĩa & Trường hợp sử dụng                                         |
+| ------------ | ----------------------- | -------------------------------------------------------------------- |
+| **feat**     | Tính năng mới           | Thêm chức năng mới, cơ chế gameplay mới hoặc hệ thống mới            |
+| **update**   | Cập nhật / Cải tiến     | Cải tiến, nâng cấp hoặc tinh chỉnh chức năng hiện có (không phải lỗi)|
+| **fix**      | Sửa lỗi                 | Sửa lỗi logic, sửa bug crash, lỗi hiển thị hoặc sai lệch dữ liệu     |
+| **hotfix**   | Sửa lỗi khẩn cấp        | Sửa lỗi nghiêm trọng làm tắc luồng game hoặc dừng build khẩn cấp    |
+| **refactor** | Tái cấu trúc            | Sắp xếp lại code, đổi cấu trúc module mà không đổi hành vi logic     |
+| **perf**     | Tối ưu hiệu năng        | Tối ưu giảm drawcall, giảm dung lượng asset, tối ưu FPS / bộ nhớ     |
+| **clean**    | Dọn dẹp                 | Xóa code thừa, console.log debug, biến không dùng, file rác          |
+| **add**      | Bổ sung thành phần      | Thêm file asset mới, prefab mới, resource phụ hoặc cấu hình nhỏ      |
+| **remove**   | Xóa bỏ                  | Xóa hẳn file, thư viện, hoặc tính năng cũ không còn dùng             |
+| **style**    | Định dạng code          | Format code, khoảng trắng, dấu chấm phẩy, không ảnh hưởng logic      |
+| **build**    | Đóng gói / Bản build    | Cấu hình build playable, file bundle, export HTML/ZIP, setting Cocos |
+| **chore**    | Bảo trì công việc phụ   | Cập nhật package, chỉnh sửa gitignore, cấu hình tool nội bộ          |
+| **revert**   | Hoàn tác commit         | Khôi phục lại trạng thái trước đó, hủy bỏ một commit cũ              |
+| **docs**     | Tài liệu                | Cập nhật README, ghi chú kỹ thuật, hướng dẫn hoặc comment giải thích |
 
-### 機能追加
-- 小規模・ファイル追加レベル → `add`
-- ユーザー向けの大きな機能 → `feat`
+---
 
-### 既存コード変更
-- バグではなく改善 → `update`
-- 内部構造のみ変更 → `refactor`
-- 仕様そのものの変更 → `change`
+## Định Dạng Commit Chuẩn
 
-### その他
-- テストのみ → `test`
-- ドキュメントのみ → `docs`
-- ビルド・CI → `chore`, `build`, `ci`
-- 不要コード削除 → `clean` or `remove`
-
-## 不明なPrefixの扱い
-
-上記一覧に含まれないPrefixを使用する場合は、**必ずユーザーに確認**してからコミットすること。
-
-## コミットメッセージの例
-
-### Good
 ```
-test: add edge-case tests for user authentication
-feat: implement dark mode toggle in settings
-fix: resolve memory leak in event listener
-refactor: extract validation logic into separate module
-add(skill): create commit skill with unified workflow
+<type>(<scope>): <tiêu đề ngắn gọn bằng tiếng Việt>
+
+- <Mô tả chi tiết 1: cụ thể những gì đã làm ở hàm/class/node nào>
+- <Mô tả chi tiết 2: lý do thay đổi hoặc hành vi logic mới>
+- <Mô tả chi tiết 3: các thành phần/file phụ thuộc liên quan (nếu có)>
 ```
 
-### Bad
+### Yêu cầu định dạng:
+1. **`<type>`**: Chọn chính xác từ bảng prefix ở trên (chữ thường).
+2. **`(<scope>)`**: Phạm vi ảnh hưởng, viết thường trong ngoặc đơn. Ví dụ: `(gameplay)`, `(map)`, `(bus)`, `(camera)`, `(floor)`, `(ui)`, `(manager)`, `(level)`.
+3. **`<tiêu đề>`**: Viết bằng **tiếng Việt**, súc tích, dưới 50 ký tự, không kết thúc bằng dấu chấm.
+4. **`<body>`**: BẮT BUỘC viết chi tiết bằng **tiếng Việt**, sử dụng các gạch đầu dòng `-`, giải thích rõ ràng chi tiết kỹ thuật.
+
+---
+
+## Ví Dụ Cụ Thể Trong Dự Án
+
+### ✅ Chuẩn (Good)
 ```
-update files
-fix stuff
-changes
-wip
+feat(camera): đưa eulerAngles của Camera lên Inspector Game.ts
+
+- Bổ sung nhóm thuộc tính G_CAM chứa tham chiếu cam và góc quay camEulerAngles.
+- Thêm hàm applyCamRotation() để xoay WCam và đồng bộ HighCam cả trong edit mode lẫn runtime.
+- Xóa bỏ việc ép xoay node Gameplay trong Game.init().
 ```
 
-## 複数の変更がある場合
-
-複数の目的が混在する場合は、**必ず分割**してコミット:
-
-```bash
-# Bad
-git add -A
-git commit -m "feat: add feature and fix bug"
-
-# Good
-git add src/feature.ts
-git commit -m "feat: add new feature"
-
-git add src/bugfix.ts
-git commit -m "fix: resolve validation bug"
 ```
+update(level): căn chỉnh vị trí bãi đỗ xe và cập nhật dữ liệu màn chơi
+
+- Điều chỉnh lại vị trí và góc xoay các xe trên PlayScene.scene.
+- Chạy Save Bus Data để đồng bộ lại BusData, ObstacleData và LinearHumanData trong Data.ts.
+```
+
+```
+perf(floor): nén dung lượng texture nền và tối ưu vật liệu sàn
+
+- Nén các file ảnh nền Park1, Park2, SakuraBG giảm ~80% dung lượng.
+- Căn chỉnh lại tilingOffset trên các material Floor_*.mtl để hiển thị chuẩn tỷ lệ.
+```
+
+```
+fix(ring): sửa lỗi người bị kẹt khi đổi làn thoát ra xe
+
+- Bổ sung kiểm tra trạng thái di chuyển moving của human trước khi gán slot mới.
+- Khắc phục hiện tượng góc quay người bị giật khi chuyển từ tọa độ local sang world.
+```
+
+### ❌ Sai quy cách (Bad)
+- `update files` *(Quá chung chung, không rõ thay đổi gì)*
+- `sửa map` *(Cộc lốc, không có prefix chuẩn, không có body mô tả chi tiết)*
+- `fix stuff` *(Thiếu thông tin kỹ thuật)*
+- `Done logic` *(Không biết đã làm những logic gì, file nào bị ảnh hưởng)*
+- `wip` *(Không có thông tin về tính năng)*
