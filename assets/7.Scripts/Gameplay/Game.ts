@@ -213,6 +213,15 @@ export class Game extends Component {
     }
     get saveBusData() { return false; }
 
+    @property
+    private _busScale: number = 1;
+    @property({ group: G_TOOL, min: 0.1, step: 0.01, tooltip: "Kích thước xe (scale node của từng xe trong Bus), không đổi vị trí / hướng / số lượng xe.\n- Va chạm (Bus.size) phóng theo nên ObstacleData phải tính lại: đổi xong tick Save Bus Data.\n- Xe vào slot vẫn giữ cỡ cũ." })
+    get busScale() { return this._busScale; }
+    set busScale(v: number) {
+        this._busScale = v;
+        this.bus?.getComponentsInChildren(Bus).forEach(b => b.node.setScale(v, v, v));
+    }
+
     // Gộp Print Bus Data + Print Block Data + Print Cached Path: đọc xe trên scene → BusData, dựng lại xe
     // từ data (spawn mới theo `type` nên đổi kiểu xe trong Inspector cũng ăn), tính ObstacleData +
     // LinearHumanData từ xe vừa dựng, rồi ghi đè 3 mảng đó trong Data.ts. Mảng import được sửa
@@ -826,6 +835,7 @@ export class Game extends Component {
             
             bus.node.eulerAngles = v3(0, 0, angle);
             bus.node.setPosition(v3(x, y, 0).multiply3f(this.disMul.x, this.disMul.y, 1));
+            bus.node.setScale(this._busScale, this._busScale, this._busScale);
             bus.node._objFlags = 
             // CCObject.Flags.DontSave 
             // | CCObject.Flags.HideInHierarchy; 
@@ -2541,7 +2551,8 @@ export class Game extends Component {
             }, this.busSpeed, true, null, 0.3);
             let paScale = this.bus.getScale();
             let mul = 1.5;
-            let scale = bus.node.getScale().multiply3f(mul/paScale.x, mul/paScale.y, mul/paScale.z);
+            // cỡ trong slot cố định, không phụ thuộc busScale
+            let scale = v3(mul/paScale.x, mul/paScale.y, mul/paScale.z);
             tween(bus.node)
             .to(time * 0.2, {scale: scale})
             .start();
