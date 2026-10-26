@@ -123,6 +123,12 @@ export class Human extends PoolMember {
         this.anim.play(Anim.Idle);
     }
 
+    // hiện model 3D, tắt sprite 2D (như run() nhưng không đổi animation)
+    show3D() {
+        this.anim.node.active = true;
+        this.sprite.node.active = false;
+    }
+
     sit() {
         this.anim.play(Anim.Sit);
     }
