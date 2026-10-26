@@ -2,7 +2,6 @@ import { _decorator, Color, Component, Enum, Node } from 'cc';
 import { EDITOR } from 'cc/env';
 import { gm } from './Game';
 import { Line3DRing } from '../../Misc/Line2D/Line3DRing';
-import { RingExitRoad } from '../../Misc/Line2D/RingExitRoad';
 const { ccclass, property, executeInEditMode } = _decorator;
 
 // Tên enum = phần sau "Map_" của prefab trong MAP_DIR. Thêm map mới: tạo prefab Map_<Tên>.prefab
@@ -28,7 +27,7 @@ Enum(FloorType);
 export class FloorRoadColor {
     @property({ type: FloorType }) floor: FloorType = FloorType.BusStation;
     @property({ tooltip: "Màu lòng đường." }) roadColor = new Color(110, 112, 151, 255);
-    @property({ tooltip: "Màu gờ / tường mép đường." }) rimColor = new Color(218, 218, 218, 255);
+    @property({ tooltip: "Màu gờ / tường mép đường. Nên đậm hơn hẳn ảnh nền để viền đường nổi rõ." }) rimColor = new Color(218, 218, 218, 255);
 
     constructor(floor = FloorType.BusStation, road?: Color, rim?: Color) {
         this.floor = floor;
@@ -36,10 +35,6 @@ export class FloorRoadColor {
         if(rim) this.rimColor = rim;
     }
 }
-
-// Line3DRing tự đổ bóng (ambient + lightDir) nên trông tối hơn màu gốc, RingExitRoad thì không
-// -> lòng đường lối ra lấy roadColor tối bớt cho khớp với ring.
-const EXIT_ROAD_SHADE = 0.78;
 
 const MAP_DIR = "db://assets/5.Prefabs/Map/";
 const FLOOR_DIR = "db://assets/5.Prefabs/Floor/";
@@ -79,13 +74,12 @@ export class MapManager extends Component {
         if(EDITOR) this.applyFloor();
     }
 
-    @property({ type: [FloorRoadColor], tooltip: "Màu đường của map theo floor đang chọn (Line3DRing + RingExitRoad trong Map Root).
-Đổi floor là đường tự đổi màu; floor không có trong danh sách thì giữ màu trong prefab map." })
+    @property({ type: [FloorRoadColor], tooltip: "Màu đường của map theo floor đang chọn (Line3DRing + RingExitRoad trong Map Root).\nĐổi floor là đường tự đổi màu; floor không có trong danh sách thì giữ màu trong prefab map." })
     floorRoadColors: FloorRoadColor[] = [
-        new FloorRoadColor(FloorType.BusStation, new Color(110, 112, 151, 255), new Color(218, 218, 218, 255)),
-        new FloorRoadColor(FloorType.Park, new Color(132, 102, 78, 255), new Color(246, 238, 214, 255)),
-        new FloorRoadColor(FloorType.PinkSakura, new Color(136, 86, 106, 255), new Color(255, 240, 242, 255)),
-        new FloorRoadColor(FloorType.Winter, new Color(92, 118, 160, 255), new Color(248, 251, 255, 255)),
+        new FloorRoadColor(FloorType.BusStation, new Color(110, 112, 151, 255), new Color(56, 64, 150, 255)),
+        new FloorRoadColor(FloorType.Park, new Color(132, 102, 78, 255), new Color(34, 88, 40, 255)),
+        new FloorRoadColor(FloorType.PinkSakura, new Color(136, 86, 106, 255), new Color(142, 32, 72, 255)),
+        new FloorRoadColor(FloorType.Winter, new Color(92, 118, 160, 255), new Color(32, 68, 136, 255)),
     ];
 
     @property({ tooltip: "Tick để dựng lại map + floor đang chọn (vd sau khi sửa prefab hoặc lỡ xoá node)." })
@@ -105,21 +99,13 @@ export class MapManager extends Component {
         if(EDITOR) this.applyRoadColors();
     }
 
-    /** tô đường của map theo màu của floor đang chọn (chỉ gán khi khác, Line3DRing tự dựng lại mesh) */
+    /** tô đường của map theo màu của floor đang chọn (chỉ gán khi khác, Line3DRing tự dựng lại mesh; RingExitRoad lấy màu theo ring) */
     applyRoadColors() {
         const c = this.floorRoadColors.find(e => e?.floor === this._floor);
         if(!c || !this.mapRoot) return;
         for(const ring of this.mapRoot.getComponentsInChildren(Line3DRing)) {
             if(!ring.roadColor.equals(c.roadColor)) ring.roadColor = c.roadColor.clone();
             if(!ring.rimColor.equals(c.rimColor)) ring.rimColor = c.rimColor.clone();
-        }
-        const exitRoad = new Color(
-            Math.round(c.roadColor.r * EXIT_ROAD_SHADE),
-            Math.round(c.roadColor.g * EXIT_ROAD_SHADE),
-            Math.round(c.roadColor.b * EXIT_ROAD_SHADE), 255);
-        for(const road of this.mapRoot.getComponentsInChildren(RingExitRoad)) {
-            if(!road.roadColor.equals(exitRoad)) road.roadColor = exitRoad.clone();
-            if(!road.rimColor.equals(c.rimColor)) road.rimColor = c.rimColor.clone();
         }
     }
 
