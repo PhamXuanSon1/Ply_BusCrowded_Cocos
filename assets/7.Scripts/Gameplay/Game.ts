@@ -99,6 +99,16 @@ export class Game extends Component {
 
     @property({ group: G_LOOK, type: [Color], tooltip: "Bảng màu dùng chung cho xe và người.\n- Index phải khớp enum ColorType trong Data.ts (0 = White, 1 = Gray, ...).\n- BusData / LinearHumanData lưu màu theo index này nên KHÔNG đổi thứ tự / chèn giữa; chỉ chỉnh giá trị màu." })
     colors: Color[] = [];
+    @property({ group: G_LOOK, type: [Color], tooltip: "Màu riêng cho XE, ghi đè Colors theo cùng index (người vẫn dùng Colors).\n- Alpha = 0 hoặc để trống -> xe dùng màu chung trong Colors.\n- VD index 4 (hồng) = #CF4AAE để xe hồng giống mẫu." })
+    busColors: Color[] = [];
+
+    // bảng màu cho xe = Colors, ghi đè bằng busColors nếu có (alpha > 0)
+    getBusColors(): Color[] {
+        return this.colors.map((c, i) => {
+            let o = this.busColors[i];
+            return o && o.a > 0 ? o.clone() : c.clone();
+        });
+    }
 
     boxMats: Material[] = [];
     humanMats: Material[] = []; 
@@ -769,7 +779,8 @@ export class Game extends Component {
         // mats[1].brightness = -10/255;
         // // mats[1].sat = 1.5;
         // mats[0].brightness = -20/255;
-        mats.forEach((m) => {
+        mats[0].init(this.getBusColors());
+        mats.slice(1).forEach((m) => {
             m.init(this.colors);
         });
         this.boxMats = mats[0].mats;
