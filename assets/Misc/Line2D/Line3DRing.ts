@@ -44,6 +44,9 @@ export class Line3DRing extends Component {
     // khoảng mẫu [đầu, cuối] của lối ra (không có tường ngoài), null = không có
     private exitSamples: number[] = null;
     private distances: number[] = [];
+    // khoảng cao độ của đường, cho depthShade
+    private zMin = 0;
+    private zRange = 1;
     private mesh: Mesh = null;
     private material: Material = null;
     private signature = '';
@@ -145,17 +148,10 @@ export class Line3DRing extends Component {
             [-half, -depth], [-half, 0, 2], [-half, inner, 1], [-half + rim, inner, 1], [-half + rim, 0, 1],
             [half - rim, 0, 0], [half - rim, wall, 1], [half, wall, 1], [half, 0, 1], [half, -depth, 1], [-half, -depth, 2],
         ];
-        const light = this.lightDir.clone();
-        if (light.lengthSqr() < 1e-6) light.set(0, 0, 1);
-        light.normalize();
-        const amb = Math.max(0, Math.min(1, this.ambient));
         const zs = this.samples.map(p => p.z);
-        const zMin = Math.min(...zs), zRange = Math.max(1e-4, Math.max(...zs) - zMin);
-        const tint = (c: Color, normal: Vec3, z: number) => {
-            const lit = Math.max(0, Math.min(1, Vec3.dot(normal, light) / Math.max(0.2, light.z)));
-            const shade = (amb + (1 - amb) * lit) * (1 - this.depthShade * (1 - (z - zMin) / zRange));
-            return [c.r / 255 * shade, c.g / 255 * shade, c.b / 255 * shade, 1];
-        };
+        this.zMin = Math.min(...zs);
+        this.zRange = Math.max(1e-4, Math.max(...zs) - this.zMin);
+        const tint = (c: Color, normal: Vec3, z: number) => this.shade(c, normal, z);
         const at = (i: number, offset: number, lift: number) => {
             const p = this.samples[i], side = this.sideAt(i);
             return new Vec3(p.x + side.x * offset * out, p.y + side.y * offset * out, p.z + lift);
@@ -204,6 +200,21 @@ export class Line3DRing extends Component {
         this.meshRenderer.mesh = mesh;
         this.mesh?.destroy();
         this.mesh = mesh;
+    }
+
+    /**
+     * Màu vertex đã đổ bóng như mặt của ring: normal (local, đã chuẩn hoá) + cao độ z (local).
+     * RingExitRoad dùng lại để đường lối ra cùng màu với tháp.
+     */
+    shade(c: Color, normal: Vec3, z: number) {
+        const light = this.lightDir.clone();
+        if (light.lengthSqr() < 1e-6) light.set(0, 0, 1);
+        light.normalize();
+        const amb = Math.max(0, Math.min(1, this.ambient));
+        const lit = Math.max(0, Math.min(1, Vec3.dot(normal, light) / Math.max(0.2, light.z)));
+        const h = Math.max(0, Math.min(1, (z - this.zMin) / this.zRange));
+        const shade = (amb + (1 - amb) * lit) * (1 - this.depthShade * (1 - h));
+        return [c.r / 255 * shade, c.g / 255 * shade, c.b / 255 * shade, 1];
     }
 
     /** Mẫu gần point exitFromPoint/exitToPoint nhất -> khoảng không có tường ngoài. */

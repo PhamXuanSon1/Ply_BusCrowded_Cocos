@@ -1,4 +1,4 @@
-import { _decorator, CCInteger, Color, Component, Material, Mesh, MeshRenderer, Node, Vec3, utils } from 'cc';
+import { _decorator, CCInteger, Color, Component, Material, Mesh, MeshRenderer, Node, Quat, Vec3, utils } from 'cc';
 import { Line3DRing } from './Line3DRing';
 
 const { ccclass, property, executeInEditMode } = _decorator;
@@ -15,12 +15,16 @@ export class RingExitRoad extends Component {
     @property({ type: Node, tooltip: 'Tâm mép cuối đường (trên Pavement). Kéo node này để đổi chiều dài / hướng đường' }) endPoint: Node = null;
     @property({ tooltip: 'Bề ngang mép cuối. 0 = bằng bề ngang lối ra' }) endWidth = 0;
     @property({ tooltip: 'Nâng mép cuối khỏi mặt endPoint một chút cho khỏi chìm vào Pavement' }) endLift = 0.004;
+    @property({ min: 0, tooltip: 'Đoạn đáp xuống sân: nối tiếp sau mép cuối theo hướng đường, dốc xuống Landing Z, phủ qua viền trắng của Pavement để đường chạy liền vào sân.\n0 = không có' }) landing = 0;
+    @property({ visible() { return this.landing > 0; }, tooltip: 'Cao độ (local Z của node này) ở cuối đoạn đáp — nhỉnh hơn mặt Pavement một chút cho khỏi chìm' }) landingZ = 0.005;
     @property({ type: CCInteger, min: 2, max: 40, tooltip: 'Số điểm lấy mẫu dọc mép lối ra' }) samples = 16;
     @property({ min: 0 }) rimWidth = 0.06;
     @property({ min: 0 }) rimHeight = 0.06;
     @property({ min: 0.005, tooltip: 'Độ dày thân đường (mặt bên trắng)' }) thickness = 0.06;
-    @property(Color) roadColor = new Color(86, 88, 119, 255);
-    @property(Color) rimColor = new Color(218, 218, 218, 255);
+    @property({ tooltip: 'Bật: lấy roadColor / rimColor + cách đổ bóng (lightDir, ambient, depthShade) của ring nên đường lối ra luôn cùng màu với tháp.\nTắt: dùng màu riêng bên dưới.' })
+    syncWithRing = true;
+    @property({ type: Color, visible() { return !this.syncWithRing; } }) roadColor = new Color(86, 88, 119, 255);
+    @property({ type: Color, visible() { return !this.syncWithRing; } }) rimColor = new Color(218, 218, 218, 255);
     @property(MeshRenderer) meshRenderer: MeshRenderer = null;
 
     private mesh: Mesh = null;
@@ -33,8 +37,9 @@ export class RingExitRoad extends Component {
         const ring = this.ring;
         const sig = JSON.stringify([
             ring?.node.worldMatrix, ring?.getExitRange?.(), ring?.width, ring?.clockwise, ring?.totalLength,
-            this.endPoint?.worldPosition, this.node.worldMatrix, this.endWidth, this.endLift, this.samples,
-            this.rimWidth, this.rimHeight, this.thickness, this.roadColor, this.rimColor,
+            this.endPoint?.worldPosition, this.node.worldMatrix, this.endWidth, this.endLift, this.landing, this.landingZ, this.samples,
+            this.rimWidth, this.rimHeight, this.thickness, this.roadColor, this.rimColor, this.syncWithRing,
+            ring?.roadColor, ring?.rimColor, ring?.lightDir, ring?.ambient, ring?.depthShade, ring?.height,
         ]);
         if (sig === this.signature) return;
         this.signature = sig;
@@ -73,13 +78,24 @@ export class RingExitRoad extends Component {
         for (let i = 0; i < n; i++) bottom.push(end.clone().add(across.clone().multiplyScalar(w * (i / (n - 1) - 0.5))));
 
         const positions: number[] = [], normals: number[] = [], colors: number[] = [], indices: number[] = [];
-        const col = (c: Color, shade: number) => [c.r / 255 * shade, c.g / 255 * shade, c.b / 255 * shade, 1];
-        const quad = (a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: number[]) => {
+        const sync = this.syncWithRing && !!ring?.isValid;
+        const roadColor = sync ? ring.roadColor : this.roadColor, rimColor = sync ? ring.rimColor : this.rimColor;
+        // local của node này -> local của ring (hướng + điểm), để đổ bóng bằng Line3DRing.shade
+        const toRingRot = Quat.multiply(new Quat(), Quat.invert(new Quat(), ring.node.worldRotation), this.node.worldRotation);
+        const toRingZ = (p: Vec3) => ring.node.inverseTransformPoint(new Vec3(), Vec3.transformMat4(new Vec3(), p, this.node.worldMatrix)).z;
+        // hint: hướng mặt quay ra ngoài khối (local này), để lật pháp tuyến cho đúng phía khi đổ bóng
+        // shade: độ tối cố định khi không đồng bộ với ring
+        const quad = (a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Color, hint: Vec3, shade: number) => {
             const base = positions.length / 3;
             const nrm = Vec3.cross(new Vec3(), b.clone().subtract(a), d.clone().subtract(a)).normalize();
-            for (const p of [a, b, c, d]) { positions.push(p.x, p.y, p.z); normals.push(nrm.x, nrm.y, nrm.z); colors.push(...color); }
+            if (Vec3.dot(nrm, hint) < 0) Vec3.negate(nrm, nrm);
+            const rgba = sync
+                ? ring.shade(color, Vec3.transformQuat(new Vec3(), nrm, toRingRot), toRingZ(a.clone().add(b).add(c).add(d).multiplyScalar(0.25)))
+                : [color.r / 255 * shade, color.g / 255 * shade, color.b / 255 * shade, 1];
+            for (const p of [a, b, c, d]) { positions.push(p.x, p.y, p.z); normals.push(nrm.x, nrm.y, nrm.z); colors.push(...rgba); }
             indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
         };
+        const UP = new Vec3(0, 0, 1);
         const up = (p: Vec3, h: number) => new Vec3(p.x, p.y, p.z + h);
         // mặt đường giữa 2 gờ (gờ chiếm rimWidth ở 2 bên)
         // điểm trên hàng row (mép trên / mép cuối) tại vị trí t (0..1 theo bề ngang)
@@ -90,27 +106,36 @@ export class RingExitRoad extends Component {
         };
         const tTop = this.rimWidth / Math.max(1e-4, Vec3.distance(top[0], top[n - 1]));
         const tBot = this.rimWidth / Math.max(1e-4, w);
-        const road = col(this.roadColor, 1), roadSide = col(this.roadColor, 0.7);
-        const rimTop = col(this.rimColor, 1), rimSide = col(this.rimColor, 0.8), rimDark = col(this.rimColor, 0.6);
-        // lòng đường: chia theo các mẫu của mép trên
-        for (let i = 1; i < n; i++) {
-            const t0 = (i - 1) / (n - 1), t1 = i / (n - 1);
-            const a = inset(top, tTop + (1 - 2 * tTop) * t0), b = inset(top, tTop + (1 - 2 * tTop) * t1);
-            const c = inset(bottom, tBot + (1 - 2 * tBot) * t1), d = inset(bottom, tBot + (1 - 2 * tBot) * t0);
-            quad(a, b, c, d, road);
+        // các hàng mép theo thứ tự: mép lối ra -> mép cuối (endPoint) -> [cuối đoạn đáp xuống sân]
+        const rows = [top, bottom], ts = [tTop, tBot];
+        if (this.landing > 0) {
+            rows.push(bottom.map(p => new Vec3(p.x + fwd.x * this.landing, p.y + fwd.y * this.landing, this.landingZ)));
+            ts.push(tBot);
         }
-        // 2 gờ trắng dọc 2 bên + mặt bên thân đường
-        for (const side of [0, 1]) {
-            const oT = side ? top[n - 1] : top[0], oB = side ? bottom[n - 1] : bottom[0];
-            const iT = inset(top, side ? 1 - tTop : tTop), iB = inset(bottom, side ? 1 - tBot : tBot);
-            const h = this.rimHeight;
-            quad(up(oT, h), up(iT, h), up(iB, h), up(oB, h), rimTop);           // mặt trên gờ
-            quad(up(iT, h), iT, iB, up(iB, h), rimSide);                         // mặt trong gờ
-            quad(oT, up(oT, h), up(oB, h), oB, rimSide);                         // mặt ngoài gờ
-            quad(up(oT, -this.thickness), oT, oB, up(oB, -this.thickness), rimDark); // mặt bên thân đường
+        for (let r = 1; r < rows.length; r++) {
+            const A = rows[r - 1], B = rows[r], tA = ts[r - 1], tB = ts[r];
+            // lòng đường: chia theo các mẫu của mép trên
+            for (let i = 1; i < n; i++) {
+                const t0 = (i - 1) / (n - 1), t1 = i / (n - 1);
+                const a = inset(A, tA + (1 - 2 * tA) * t0), b = inset(A, tA + (1 - 2 * tA) * t1);
+                const c = inset(B, tB + (1 - 2 * tB) * t1), d = inset(B, tB + (1 - 2 * tB) * t0);
+                quad(a, b, c, d, roadColor, UP, 1);
+            }
+            // 2 gờ dọc 2 bên + mặt bên thân đường
+            for (const side of [0, 1]) {
+                const oT = side ? A[n - 1] : A[0], oB = side ? B[n - 1] : B[0];
+                const iT = inset(A, side ? 1 - tA : tA), iB = inset(B, side ? 1 - tB : tB);
+                const outward = oT.clone().subtract(iT), inward = iT.clone().subtract(oT);
+                const h = this.rimHeight;
+                quad(up(oT, h), up(iT, h), up(iB, h), up(oB, h), rimColor, UP, 1);                          // mặt trên gờ
+                quad(up(iT, h), iT, iB, up(iB, h), rimColor, inward, 0.8);                                  // mặt trong gờ
+                quad(oT, up(oT, h), up(oB, h), oB, rimColor, outward, 0.8);                                 // mặt ngoài gờ
+                quad(up(oT, -this.thickness), oT, oB, up(oB, -this.thickness), rimColor, outward, 0.6);     // mặt bên thân đường
+            }
         }
         // mép cuối (đứng) cho thân đường không bị hở khi nhìn nghiêng
-        quad(bottom[0], bottom[n - 1], up(bottom[n - 1], -this.thickness), up(bottom[0], -this.thickness), roadSide);
+        const last = rows[rows.length - 1];
+        quad(last[0], last[n - 1], up(last[n - 1], -this.thickness), up(last[0], -this.thickness), roadColor, fwd, 0.7);
 
         const mesh = utils.MeshUtils.createMesh({ positions, normals, colors, indices });
         if (!this.material) {

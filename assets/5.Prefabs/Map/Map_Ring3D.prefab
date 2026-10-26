@@ -6253,6 +6253,8 @@
     },
     "endWidth": 0,
     "endLift": -0.596,
+    "landing": 0.62,
+    "landingZ": 0.005,
     "samples": 23,
     "rimWidth": 0.06,
     "rimHeight": 0.06,
