@@ -80,6 +80,7 @@ export class Game extends Component {
     clicksToStore: number = 12;
     count: number = 0;
     progress: number = 0;
+    won: boolean = false;
     @property({ group: G_STORE, tooltip: "Bật/tắt tay hướng dẫn (hand tutorial).\nTắt thì không hiện tay ở bất kỳ đâu; Intro vẫn khoanh sáng xe đầu tiên trong Tap Indices." })
     useHand: boolean = true;
     @property({ group: G_STORE, visible() { return this.useHand; }, tooltip: "Số giây chờ kể từ lúc vào game, nếu người chơi vẫn chưa bấm lần nào thì hiện tay hướng dẫn (tut).\nBấm trước thời gian này thì không hiện." })
@@ -2786,7 +2787,11 @@ export class Game extends Component {
                 bus.onDespawn();
             }, this.busSpeed);
 
-            if(this.progress >= 100 && this.movingHumans.length == 0) {
+            // progress tính theo số lần bấm xe -> đạt 100% ngay khi bấm xe cuối, lúc đó các slot
+            // khác vẫn có thể còn xe đang đón khách. Chỉ win khi mọi slot đã trống.
+            if(!this.won && this.progress >= 100 && this.movingHumans.length == 0
+                && this.slots.every(s => !s.bus || !s.bus.isValid)) {
+                this.won = true;
                 ui.onWin();
             }
 
