@@ -16,7 +16,9 @@ import { findNearestColor, getPixel, readImagePixels, SandSimulationChunked, sav
 import { AStar, getNeightbors } from '../Misc/AStar';
 import { truncate } from './BoxCreator';
 import { Line3DRing } from '../../Misc/Line2D/Line3DRing';
-// Cách sắp thứ tự row người đi vào ring (SpawnMode.Data).
+import { Line2D } from '../../Misc/Line2D/Line2D';
+import { GameMap, MapKind } from './GameMap';
+// Cách sắp thứ tự row người đi vào ring (SpawnMode.Data / map RingFeeder).
 export enum RowOrder {
     Data = 0,       // giữ nguyên thứ tự LinearHumanData
     LoopColors = 1, // màu 0..7 xoay vòng, mỗi màu rowsPerColor row
@@ -39,7 +41,6 @@ const { ccclass, property, executeInEditMode } = _decorator;
 const G_STORE = { name: "Store & Hướng dẫn", id: "store", displayOrder: 1, style: "section" };
 const G_LOOK = { name: "Màu & Hiển thị người", id: "look", displayOrder: 2, style: "section" };
 const G_SPAWN = { name: "Sinh người lên ring", id: "spawn", displayOrder: 3, style: "section" };
-const G_RING = { name: "Ring xoắn ốc", id: "ring", displayOrder: 4, style: "section" };
 const G_INTRO = { name: "Intro (màn tối + khung sáng)", id: "intro", displayOrder: 5, style: "section" };
 const G_TOOL = { name: "Công cụ Editor", id: "tool", displayOrder: 6, style: "section" };
 
@@ -56,6 +57,20 @@ export class RingRow {
     // quãng đường lần trước, để biết row vừa vòng từ cuối đường về đầu vào
     lastDis: number = -1;
     wrapped: boolean = false;
+}
+
+// 1 row người của map RingFeeder: trên ring (node cố định theo slot) hoặc trên 1 trong 2 hàng chờ
+export class HumanRow {
+    node: Node = null;
+    humans: Human[] = [];
+    color: ColorType = ColorType.White;
+    // Row trên ring: index CỐ ĐỊNH trong this.ringRows (0..ringSlotCount-1) — node/index không
+    // bao giờ đổi trong suốt game, chỉ có `humans`/`color` bên trong thay đổi khi feed vào/ra
+    // (xem Game.updateRingSlots()/feedSlotFrom()). Row trên hàng chờ: không dùng.
+    slotIndex: number = -1;
+    // true trong lúc đang chuyển người từ hàng chờ vào (feedSlotFrom) — chặn checkBus()/
+    // tryFeedEmptySlots() động vào.
+    moving: boolean = false;
 }
 
 @ccclass('Game')
@@ -101,41 +116,54 @@ export class Game extends Component {
 
     @property({ group: G_SPAWN, tooltip: "Số người đứng ngang trong 1 row trên ring (cả row cùng màu).\n- Bề ngang đường Line3DRing tự tính = humanPerRow * ringLaneGap + 2 gờ.\n- Xe lấy người theo row, nên số ghế xe nên là bội số của số này." })
     humanPerRow: number = 4;
-    @property({ group: G_SPAWN, type: SpawnMode, tooltip: "Cách chọn màu cho row mới sinh trên ring:\n- Data: theo LinearHumanData, đúng số row mỗi màu = số ghế xe màu đó, sắp theo Row Order. Phát hết thì lấp ô trống theo Fill Mode.\n- ColorLoop: mỗi màu ra liền 1 cụm Loop Rows Min..Max row, lần lượt theo màu các xe, hết vòng quay lại màu đầu (người vô hạn, không bao giờ hết)." })
+    @property({ group: G_SPAWN, type: SpawnMode, visible() { return !this.isFeeder(); }, tooltip: "(Map Ring3D) Cách chọn màu cho row mới sinh trên ring:\n- Data: theo LinearHumanData, đúng số row mỗi màu = số ghế xe màu đó, sắp theo Row Order. Phát hết thì lấp ô trống theo Fill Mode.\n- ColorLoop: mỗi màu ra liền 1 cụm Loop Rows Min..Max row, lần lượt theo màu các xe, hết vòng quay lại màu đầu (người vô hạn, không bao giờ hết).\nMap RingFeeder luôn theo Data (Row Order)." })
     spawnMode: SpawnMode = SpawnMode.ColorLoop;
-    @property({ group: G_SPAWN, type: Enum(RowOrder), visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Thứ tự các row:\n- Data: giữ nguyên thứ tự LinearHumanData.\n- LoopColors: màu 0..7 xoay vòng, mỗi lượt Rows Per Color row.\n- BusOrder: người của các xe đang thoát được (theo ObstacleData) ra trước → dễ thắng, luôn có cách giải." })
+    @property({ group: G_SPAWN, type: Enum(RowOrder), visible() { return this.usesRowData(); }, tooltip: "(Data / map RingFeeder) Thứ tự các row:\n- Data: giữ nguyên thứ tự LinearHumanData.\n- LoopColors: màu 0..7 xoay vòng, mỗi lượt Rows Per Color row.\n- BusOrder: người của các xe đang thoát được (theo ObstacleData) ra trước → dễ thắng, luôn có cách giải." })
     rowOrder: RowOrder = RowOrder.BusOrder;
-    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Số row liên tiếp cùng màu mỗi lượt khi xoay vòng màu (LoopColors / BusOrder).\n0 = giữ nguyên thứ tự LinearHumanData." })
+    @property({ group: G_SPAWN, visible() { return this.usesRowData(); }, tooltip: "(Data / map RingFeeder) Số row liên tiếp cùng màu mỗi lượt khi xoay vòng màu (LoopColors / BusOrder).\n0 = giữ nguyên thứ tự LinearHumanData." })
     rowsPerColor: number = 4;
-    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data + BusOrder) Số xe được xen kẽ row cùng lúc.\n1 = phát hết người của xe này mới sang xe sau; lớn hơn = các màu đan xen nhiều hơn, khó hơn." })
+    @property({ group: G_SPAWN, visible() { return this.usesRowData(); }, tooltip: "(Data / map RingFeeder + BusOrder) Số xe được xen kẽ row cùng lúc.\n1 = phát hết người của xe này mới sang xe sau; lớn hơn = các màu đan xen nhiều hơn, khó hơn." })
     busOrderWindow: number = 3;
-    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row ít nhất của 1 cụm cùng màu." })
+    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row ít nhất của 1 cụm cùng màu." })
     loopRowsMin: number = 4;
-    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row nhiều nhất của 1 cụm cùng màu.\nMỗi cụm chọn ngẫu nhiên trong khoảng Min..Max; đặt Min = Max để mọi cụm dài bằng nhau." })
+    @property({ group: G_SPAWN, type: CCInteger, min: 1, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Số row nhiều nhất của 1 cụm cùng màu.\nMỗi cụm chọn ngẫu nhiên trong khoảng Min..Max; đặt Min = Max để mọi cụm dài bằng nhau." })
     loopRowsMax: number = 4;
-    @property({ group: G_SPAWN, visible() { return this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Xử lý màu đã hết xe cần người:\n- Tắt: cụm màu đó vẫn chạy trên ring, chuỗi màu vẫn quay đều mọi màu trong màn.\n- Bật: đổi ngay cả cụm sang màu còn cần và bỏ màu đó khỏi chuỗi → ring chỉ còn màu có ích, dễ thắng hơn." })
+    @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Xử lý màu đã hết xe cần người:\n- Tắt: cụm màu đó vẫn chạy trên ring, chuỗi màu vẫn quay đều mọi màu trong màn.\n- Bật: đổi ngay cả cụm sang màu còn cần và bỏ màu đó khỏi chuỗi → ring chỉ còn màu có ích, dễ thắng hơn." })
     recolorFinished: boolean = false;
-    @property({ group: G_SPAWN, type: FillMode, visible() { return this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Khi đã phát hết row cho mọi xe mà ring còn ô trống:\n- None: để trống.\n- WinColors: lấp bằng màu các xe còn chờ người (dư người giúp thắng).\n- LevelColors: lấp bằng mọi màu có trong màn." })
+    @property({ group: G_SPAWN, type: FillMode, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Khi đã phát hết row cho mọi xe mà ring còn ô trống:\n- None: để trống.\n- WinColors: lấp bằng màu các xe còn chờ người (dư người giúp thắng).\n- LevelColors: lấp bằng mọi màu có trong màn." })
     fillMode: FillMode = FillMode.LevelColors;
 
-    @property({ group: G_RING, type: Line3DRing, tooltip: "Đường xoắn ốc (component Line3DRing) mà người chạy vòng.\n- Row đi qua lối ra (exitFromPoint → exitToPoint của Line3DRing) mà cùng màu xe đang đỗ trong slot thì xuống lên xe.\n- Tới cuối đường thì thu nhỏ rồi hiện lại ở đầu vào.\n- Để trống / tắt node = không dùng ring." })
-    line3DRing: Line3DRing = null;
-    @property({ group: G_RING, tooltip: "Tốc độ chạy của row trên ring (đơn vị local của Line3DRing / giây).\nCũng quyết định nhịp người đi qua lối ra lên xe." })
-    ringSpeed: number = 1;
-    @property({ group: G_RING, tooltip: "Chiều chạy:\n- Bật: từ point cuối về point 0.\n- Tắt: từ point 0 tới point cuối (theo thứ tự node con của Points trong Line3DRing)." })
-    ringReverse: boolean = true;
-    @property({ group: G_RING, tooltip: "Khoảng cách giữa 2 row liên tiếp trên ring (đơn vị local Line3DRing).\nSố ô = chiều dài đường / giá trị này → lớn hơn = ít người hơn, nhẹ hơn (mỗi người là 1 sprite/mesh)." })
-    ringRowSpacing: number = 0.45;
-    @property({ group: G_RING, tooltip: "Khoảng cách ngang giữa 2 người cạnh nhau trong row (đơn vị local Line3DRing).\nĐổi giá trị này thì bề ngang đường Line3DRing cũng đổi theo." })
-    ringLaneGap: number = 0.3;
-    @property({ group: G_RING, range: [0, 1, 0.05], slide: true, tooltip: "Tỉ lệ ô trên ring có sẵn người lúc bắt đầu (0..1).\n1 = kín đường ngay từ đầu; nhỏ hơn thì phần trống được lấp dần ở đầu vào khi ring chạy." })
-    ringPrefill: number = 1;
-    @property({ group: G_RING, tooltip: "Phóng to người trên ring so với người ở node Human (chỗ người đi ra xe).\n1 = cùng cỡ thế giới." })
-    ringHumanScale: number = 1.2;
-    @property({ group: G_RING, tooltip: "Quãng đường (local Line3DRing) mà row thu nhỏ dần ở cuối đường và hiện dần ở đầu vào khi quay vòng.\n0 = biến mất / hiện ra tức thì." })
-    ringFade: number = 0.6;
-    @property({ group: G_RING, type: [Node], tooltip: "Các điểm người đi qua theo thứ tự sau khi rời lối ra của ring, rồi mới đi vào xe.\nĐể trống = đi thẳng từ lối ra tới xe." })
-    exitPoints: Node[] = [];
+    // Map đang dùng (GameMap ở gốc prefab Map_* dưới Linear, MapManager chọn). Đường đi + thông số
+    // ring nằm trong map; các getter dưới đây đọc từ map để code ring giữ nguyên cách gọi.
+    map: GameMap = null;
+
+    isFeeder() { return this.map?.kind == MapKind.RingFeeder; }
+    usesRowData() { return this.isFeeder() || this.spawnMode == SpawnMode.Data; }
+
+    get line3DRing() { return this.map?.line3DRing ?? null; }
+    get exitPoints() { return this.map?.exitPoints ?? []; }
+    get ringSpeed() { return this.map.ringSpeed; }
+    get ringReverse() { return this.map.ringReverse; }
+    get ringRowSpacing() { return this.map.ringRowSpacing; }
+    get ringLaneGap() { return this.map.ringLaneGap; }
+    get ringPrefill() { return this.map.ringPrefill; }
+    get ringHumanScale() { return this.map.ringHumanScale; }
+    get ringFade() { return this.map.ringFade; }
+
+    get ringSlotCount() { return this.map.ringSlotCount; }
+    get ringRevolveSeconds() { return this.map.ringRevolveSeconds; }
+    get ringAngleOffset() { return this.map.ringAngleOffset; }
+    get ringFrontAngleMin() { return this.map.ringFrontAngleMin; }
+    get ringFrontAngleMax() { return this.map.ringFrontAngleMax; }
+    get leftFeedAngle() { return this.map.leftFeedAngle; }
+    get rightFeedAngle() { return this.map.rightFeedAngle; }
+    get leftFeedAngleTolerance() { return this.map.leftFeedAngleTolerance; }
+    get rightFeedAngleTolerance() { return this.map.rightFeedAngleTolerance; }
+    get rowLineSpacing() { return this.map.rowLineSpacing; }
+    get rowCentered() { return this.map.rowCentered; }
+    get startPinkRows() { return this.map.startPinkRows; }
+    get startPinkColor() { return this.map.startPinkColor; }
+    get startPinkAngle() { return this.map.startPinkAngle; }
 
     buses: Bus[] = [];
     slots: Slot[] = [];
@@ -535,9 +563,10 @@ export class Game extends Component {
 
     init() {
         if(!EDITOR_NOT_IN_PREVIEW) {
-            this.node.eulerAngles = v3(-30, 0, 0);
+            this.node.eulerAngles = v3(this.findMap()?.tilt ?? -30, 0, 0);
         }
         this.initLayers();
+        if(!EDITOR_NOT_IN_PREVIEW) this.applyMapCamera();
         this.initTouch();
         this.initMats();
         this.initSlots();
@@ -601,6 +630,8 @@ export class Game extends Component {
         this.brainText = this.brain.getComponentInChildren(Label);
         // this.setScore();
         this.linear = this.node.getChildByName("Linear");
+        this.map = this.findMap();
+        if(!this.map) console.warn("Game: không có map (GameMap) nào đang bật dưới Linear — chọn map ở MapManager");
         // Batcher2D vẽ các RenderRoot2D theo siblingIndex CỤC BỘ. Scenes/UI (chứa "Black", material
         // 2D.mtl có depthWrite, z=10) có index 1, Linear index 9 → Black vẽ trước, ghi depth phủ màn,
         // road Graphics (depth test) vẽ sau bị loại hết → mất đường khi hiện màn đen. Đưa Linear lên
@@ -610,6 +641,35 @@ export class Game extends Component {
             director.root.batcher2D.sortScreens();
         }
         if(!EDITOR_NOT_IN_PREVIEW) this.node.getChildByName("Test").active = false;
+    }
+
+    // map đang dùng = GameMap đang bật dưới Linear (MapManager tạo instance prefab Map_* ở đây)
+    findMap(): GameMap {
+        let linear = this.node.getChildByName("Linear");
+        return linear?.getComponentsInChildren(GameMap).find(m => m.enabledInHierarchy) ?? null;
+    }
+
+    // map bật overrideCamera: đặt WCam theo map (HighCam tự chép theo WCam mỗi frame — syncHighCam)
+    applyMapCamera() {
+        let cam = ui?.wCamera;
+        if(!this.map?.overrideCamera || !cam) return;
+        let p = cam.node.position;
+        cam.node.setPosition(p.x, this.map.cameraY, p.z);
+        cam.orthoHeight = this.map.orthoHeight;
+    }
+
+    // editor: MapManager vừa đổi map -> bỏ người của map cũ rồi dựng lại người theo đường của map mới
+    refreshMap() {
+        if(!this.linear?.isValid) return;
+        let road = this.line3DRing;
+        if(road?.isValid) road.node.off(Line3DRing.REBUILT, this.onRingRebuilt, this);
+        if(this.ringContainer?.isValid) this.ringContainer.destroy();
+        this.ringContainer = null;
+        this.clearFeederRing();
+        this.map = this.findMap();
+        this.ringProgress = 0;
+        this.initRowData();
+        this.initRing();
     }
 
     chosenColors: Color[] = [];
@@ -971,11 +1031,12 @@ export class Game extends Component {
         return result;
     }
 
-    // Thứ tự row cho SpawnMode.Data: khớp sức chứa xe rồi sắp theo rowOrder
+    // Thứ tự row cho SpawnMode.Data / map RingFeeder: khớp sức chứa xe rồi sắp theo rowOrder
     initRowData() {
         let rows = this.fitRowsToBuses(LinearHumanData);
         if(this.rowOrder == RowOrder.LoopColors) rows = this.loopRowColors(rows);
         else if(this.rowOrder == RowOrder.BusOrder) rows = this.orderRowsByBuses();
+        if(this.isFeeder()) rows = this.placeStartPinkRows(rows);
         this.data = rows;
     }
 
@@ -1001,7 +1062,7 @@ export class Game extends Component {
     ringRelayoutTimer = 0;
 
     ringMode() {
-        return !!this.line3DRing?.isValid && this.line3DRing.enabledInHierarchy;
+        return this.map?.kind == MapKind.Ring3D && !!this.line3DRing?.isValid && this.line3DRing.enabledInHierarchy;
     }
 
     initRing() {
@@ -1010,6 +1071,10 @@ export class Game extends Component {
         this.humans = [];
         this.colorHumans = [];
         this.humanBaseScale.clear();
+        if(this.isFeeder()) {
+            this.initFeederRing();
+            return;
+        }
         if(!this.ringMode()) return;
         const road = this.line3DRing;
         // bề ngang đường = đúng 1 hàng humanPerRow người (mỗi người chiếm ringLaneGap) + 2 gờ
@@ -1434,8 +1499,10 @@ export class Game extends Component {
         return this.ringSlots.some(r => r && r.humans.length && need.has(r.color));
     }
 
-    // người trên các row sắp tới lối ra (1/4 vòng trước lối ra) — dùng cho tay hướng dẫn
+    // người trên các row sắp tới lối ra (1/4 vòng trước lối ra) — dùng cho tay hướng dẫn.
+    // Map RingFeeder: người trên các row đang ở vùng chính diện.
     getFrontHumans(): Human[] {
+        if(this.isFeeder()) return this.getFrontRows().reduce((acc, row) => acc.concat(row.humans), [] as Human[]);
         if(!this.ringExit || !this.ringSlots.length) return [];
         const [a, b] = this.ringExit;
         const reach = this.line3DRing.totalLength * 0.25;
@@ -1447,6 +1514,523 @@ export class Game extends Component {
             if(near) humans.push(...row.humans);
         });
         return humans;
+    }
+
+    // ---- Ring + 2 hàng chờ (map RingFeeder) ----
+    // Ring khép kín (map.ringLine2D) chia ringSlotCount slot cố định quay vòng; 2 hàng chờ (map.line2D /
+    // map.line2D2) xếp row đứng yên, slot trống quay tới góc feed thì row đầu hàng chờ nhảy vào. Row ở
+    // vùng chính diện cùng màu xe trong slot thì lên xe (checkBus).
+
+    ringRows: HumanRow[] = [];
+    leftQueue: HumanRow[] = [];
+    rightQueue: HumanRow[] = [];
+    leftLposes: Vec3[] = [];
+    rightLposes: Vec3[] = [];
+    pendingRows: ColorType[][] = [];
+    // node chứa row trên ring / 2 hàng chờ (con của Human, không lưu vào scene)
+    ringNode: Node = null;
+    rowLeftNode: Node = null;
+    rowRightNode: Node = null;
+    // tâm ring (local theo ringNode) — row trên ring luôn quay mặt về đây
+    ringCenter: Vec3 = v3();
+
+    initFeederRing() {
+        this.clearFeederRing();
+        const m = this.map;
+        if(!m.line2D || !m.line2D2 || !m.ringLine2D) {
+            console.error("Game: map RingFeeder thiếu Line2D / Line2D2 / Ring Line2D trong GameMap");
+            return;
+        }
+        this.linear.active = true;
+        this.ringNode = this.createRowRoot("RingRows");
+        this.rowLeftNode = this.createRowRoot("QueueLeft");
+        this.rowRightNode = this.createRowRoot("QueueRight");
+        this.ringCenter = this.getRingCenter();
+        this.leftLposes = this.sampleLine(m.line2D, this.rowLineSpacing);
+        this.rightLposes = this.sampleLine(m.line2D2, this.rowLineSpacing);
+        this.slotOwner = [];
+        this.leftAssigned = 0;
+        this.rightAssigned = 0;
+
+        let rowsData = this.buildRowChunks(this.data as ColorType[]);
+
+        // Mỗi slot 0..ringSlotCount-1 LUÔN có 1 node cố định (kể cả chưa có người — row rỗng) nên
+        // getSlotAngle()/updateRingSlots() không cần xử lý riêng slot null.
+        for(let i = 0; i < this.ringSlotCount; i++) {
+            let colors = rowsData.shift();
+            let row: HumanRow;
+            if(colors && colors.length > 0) {
+                row = this.spawnRow(colors, this.ringNode, v3());
+                this.activateRingHumans(row);
+            } else {
+                row = new HumanRow();
+                row.node = new Node("Row");
+                row.node.parent = this.ringNode;
+                row.node._objFlags = CCObject.Flags.DontSave;
+            }
+            row.slotIndex = i;
+            this.ringRows.push(row);
+        }
+        // Đặt vị trí/góc ban đầu ngay — tránh 1 frame đầu các row còn nằm ở (0,0,0).
+        this.updateRingSlots(0);
+
+        // Chỉ đẻ đúng số row vừa khít số vị trí lấy mẫu được trên mỗi hàng chờ, luân phiên 2 bên; phần
+        // còn lại giữ trong pendingRows, mỗi khi 1 row hàng chờ được đưa vào ring (feedSlotFrom) mới đẻ
+        // tiếp 1 row lấp chỗ trống cuối hàng đó. Hàng trái xếp người theo -Y, hàng phải theo +Y.
+        this.pendingRows = rowsData;
+        let sides = [
+            { queue: this.leftQueue, lposes: this.leftLposes, offset: v3(0, -this.humanDis.y, 0), parent: this.rowLeftNode },
+            { queue: this.rightQueue, lposes: this.rightLposes, offset: null as Vec3, parent: this.rowRightNode },
+        ];
+        let side = 0;
+        while(this.pendingRows.length > 0
+        && (this.leftQueue.length < this.leftLposes.length || this.rightQueue.length < this.rightLposes.length)) {
+            let s = sides[side];
+            side = 1 - side;
+            if(s.queue.length >= s.lposes.length) continue;
+
+            let colors = this.pendingRows.shift();
+            let idx = s.queue.length;
+            let pos = s.lposes[idx];
+            let row = this.spawnRow(colors, s.parent, pos, s.offset);
+            this.faceQueueRow(row, pos, idx > 0 ? s.lposes[idx - 1] : null, s.lposes[idx + 1] || null);
+            this.orientQueueHumans(row);
+            s.queue.push(row);
+        }
+
+        this.outsideHumans = this.getFrontHumans();
+    }
+
+    createRowRoot(name: string): Node {
+        let n = new Node(name);
+        n.parent = this.human;
+        n._objFlags = CCObject.Flags.DontSave;
+        return n;
+    }
+
+    // bỏ hết row của map RingFeeder (trả người về pool)
+    clearFeederRing() {
+        [this.ringNode, this.rowLeftNode, this.rowRightNode].forEach(n => {
+            if(!n?.isValid) return;
+            n.getComponentsInChildren(Human).forEach(h => pm?.despawn(h));
+            n.destroy();
+        });
+        this.ringNode = this.rowLeftNode = this.rowRightNode = null;
+        this.ringRows = [];
+        this.leftQueue = [];
+        this.rightQueue = [];
+        this.pendingRows = [];
+    }
+
+    // tâm ring local theo ringNode: node Ring Origin của map, không có thì trung bình cộng các Point của ring
+    getRingCenter(): Vec3 {
+        let w = v3();
+        let origin = this.map.ringOrigin;
+        if(origin?.isValid) {
+            w.set(origin.worldPosition);
+        } else {
+            let line = this.map.ringLine2D;
+            line.init();
+            line.points.forEach(p => w.add(p.worldPosition));
+            if(line.points.length) w.multiplyScalar(1 / line.points.length);
+        }
+        return this.ringNode.inverseTransformPoint(v3(), w);
+    }
+
+    // Lấy startPinkRows row màu startPinkColor đầu tiên trong `rows` đặt vào các slot ring gần startPinkAngle nhất
+    // (liền nhau) để lúc mới vào game ring có 1 dải cùng màu; các slot còn lại + hàng chờ giữ nguyên
+    // thứ tự cũ. Số row tổng không đổi nên vẫn khớp sức chứa xe.
+    placeStartPinkRows(rows: ColorType[]): ColorType[] {
+        let n = this.ringSlotCount;
+        let pink: ColorType[] = [];
+        let others: ColorType[] = [];
+        rows.forEach(c => {
+            if(c == this.startPinkColor && pink.length < this.startPinkRows) pink.push(c);
+            else others.push(c);
+        });
+        if(pink.length == 0 || n <= 0) return rows;
+
+        let slots = Array.from({ length: n }, (_, i) => i)
+            .sort((a, b) => this.angleDist(this.getSlotAngle(a), this.startPinkAngle)
+                          - this.angleDist(this.getSlotAngle(b), this.startPinkAngle))
+            .slice(0, Math.min(pink.length, n));
+        let ring: ColorType[] = [];
+        for(let i = 0; i < n; i++) {
+            ring.push(slots.includes(i) ? pink.pop() : others.shift());
+        }
+        return [...ring.filter(c => c !== undefined), ...others];
+    }
+
+    buildRowChunks(data: ColorType[]): ColorType[][] {
+        return data.map(color => Array(this.humanPerRow).fill(color));
+    }
+
+    // `perHumanOffset`: khoảng dịch (cục bộ) giữa người thứ i và i+1 trong row, mặc định dọc +Y
+    // (row trên ring và hàng phải). Hàng trái truyền v3(0, -humanDis.y, 0) để người xếp theo -Y.
+    spawnRow(colors: ColorType[], parent: Node, localPos: Vec3, perHumanOffset: Vec3 = null): HumanRow {
+        let row = new HumanRow();
+        row.color = colors[0];
+        let offset = perHumanOffset || v3(0, this.humanDis.y, 0);
+
+        row.node = new Node("Row");
+        row.node.parent = parent;
+        row.node._objFlags = CCObject.Flags.DontSave;
+        row.node.position = localPos;
+
+        let n = colors.length;
+        colors.forEach((c, i) => {
+            let human = pm.spawnType<Human>(PoolType.Human);
+            human.node.parent = row.node;
+            human.node._objFlags = CCObject.Flags.DontSave;
+            human.init(c, v2(), 0);
+            human.node.position = this.rowLocalPos(i, n, offset);
+            this.showHuman(human);
+            // lúc chạy game người hiện 3D ngay (Ring3D cũng vậy vì người chạy luôn); người đứng yên
+            // trên hàng chờ không gọi run() nên phải tự chuyển, không thì giữ sprite 2D tới lúc di chuyển
+            if(!EDITOR_NOT_IN_PREVIEW) {
+                human.show3D();
+                human.idle();
+            }
+            this.humans.push(human);
+            (this.colorHumans[human.color] = this.colorHumans[human.color] || []).push(human);
+            human.row = row;
+            row.humans.push(human);
+        });
+        return row;
+    }
+
+    // Vị trí local của người thứ i trong row n người, xếp theo `offset` mỗi bước. rowCentered:
+    // dời cả dãy lùi nửa chiều dài để TÂM row (không phải người 0) trùng gốc row — gốc row luôn
+    // đặt đúng trên path (ring/hàng chờ) nên người nằm giữa lòng đường thay vì dồn về 1 mép.
+    rowLocalPos(i: number, n: number, offset: Vec3): Vec3 {
+        let k = this.rowCentered ? i - (n - 1) * 0.5 : i;
+        return offset.clone().multiplyScalar(k);
+    }
+
+    // Lấy mẫu trên ringLine2D tại 1 ratio (0-1) bất kỳ dọc path, khép kín (qua 1 thì vòng lại từ
+    // đầu — path cần điểm cuối trùng điểm đầu để không hụt ở mốc nối). Trả về LOCAL theo ringNode.
+    ringPointAt(ratio: number): Vec3 {
+        ratio = ((ratio % 1) + 1) % 1;
+        let line = this.map.ringLine2D;
+        line.init();
+        let p = line.getPositionByRatio(ratio).pos;
+        return this.ringNode.inverseTransformPoint(v3(), p);
+    }
+
+    // Tính góc z (độ) để đứng ở `fromPos` thì hướng về phía `target` (cùng hệ toạ độ cha).
+    // `extraAngle`: lệch thêm cục bộ (độ) sau khi đã hướng về target.
+    computeFacingAngle(fromPos: Vec3, target: Vec3, extraAngle: number = 0): number {
+        let dir = target.clone().subtract(fromPos);
+        return toDegree(Math.atan2(dir.y, dir.x)) - 90 + extraAngle;
+    }
+
+    faceTowards(row: HumanRow, fromPos: Vec3, target: Vec3, extraAngle: number = 0) {
+        row.node.eulerAngles = v3(0, 0, this.computeFacingAngle(fromPos, target, extraAngle));
+    }
+
+    // Row trên hàng chờ hướng về row phía trước nó (gần ring hơn). Row đầu tiên (không có prevPos)
+    // suy ra hướng từ row kế tiếp (nextPos) theo chiều ngược lại. Lệch thêm 90° cục bộ.
+    faceQueueRow(row: HumanRow, fromPos: Vec3, prevPos: Vec3 | null, nextPos: Vec3 | null = null) {
+        let target = prevPos
+            || (nextPos && fromPos.clone().add(fromPos.clone().subtract(nextPos)))
+            || fromPos.clone().add(v3(0, 1, 0));
+        this.faceTowards(row, fromPos, target, 90);
+    }
+
+    // Người trên ring: bật chạy. row.node đã hướng vào tâm ring (updateRingSlots) — lệch thêm 90°
+    // cục bộ để người hướng tiếp tuyến thay vì hướng vào tâm.
+    activateRingHumans(row: HumanRow) {
+        row.humans.forEach(h => {
+            h.node.eulerAngles = v3(0, 0, 90);
+            h.setMoving(!EDITOR_NOT_IN_PREVIEW);
+        });
+    }
+
+    // Người trên hàng chờ: lệch cục bộ -90° so với hướng của row, đứng yên.
+    orientQueueHumans(row: HumanRow) {
+        row.humans.forEach(h => {
+            h.node.eulerAngles = v3(0, 0, -90);
+        });
+    }
+
+    // Góc tuyệt đối của slot i, tính thẳng từ index cố định + ringProgress hiện tại (0..1) — không phụ
+    // thuộc trạng thái row/tween nào nên luôn nhất quán, không thể lệch/trôi.
+    getSlotAngle(slotIndex: number): number {
+        if(this.ringSlotCount == 0) return 0;
+        let dir = this.ringReverse ? -1 : 1;
+        let a = (slotIndex / this.ringSlotCount) * 360 + dir * this.ringProgress * 360 + this.ringAngleOffset;
+        return ((a % 360) + 360) % 360;
+    }
+
+    // So khoảng [min, max] có xử lý khoảng CẮT QUA mốc 0/360 (VD min=350, max=10).
+    isInAngleRange(a: number, min: number, max: number): boolean {
+        a = ((a % 360) + 360) % 360;
+        min = ((min % 360) + 360) % 360;
+        max = ((max % 360) + 360) % 360;
+        if(min <= max) return a >= min && a <= max;
+        return a >= min || a <= max;
+    }
+
+    // Khoảng cách góc ngắn nhất giữa 2 góc (0-360), có xử lý vòng qua mốc 0/360.
+    angleDist(a: number, b: number): number {
+        let d = Math.abs(a - b);
+        return Math.min(d, 360 - d);
+    }
+
+    // Cửa sổ chính diện có thể chứa nhiều row cùng lúc — trả về hết để checkBus() dò đủ.
+    getFrontRows(): HumanRow[] {
+        if(!this.ringNode) return [];
+        let rows: HumanRow[] = [];
+        for(let i = 0; i < this.ringRows.length; i++) {
+            let row = this.ringRows[i];
+            if(!row || row.moving) continue;
+            if(this.isInAngleRange(this.getSlotAngle(i), this.ringFrontAngleMin, this.ringFrontAngleMax)) {
+                rows.push(row);
+            }
+        }
+        return rows;
+    }
+
+    sampleLine(line2D: Line2D, spacing: number): Vec3[] {
+        line2D.init();
+        let amount = Math.max(1, Math.floor(line2D.totalLength / spacing));
+        let poses: Vec3[] = [];
+        for(let i = 0; i < amount; i++) {
+            let p = line2D.getPositionByRatio(i/amount).pos;
+            poses.push(this.human.inverseTransformPoint(v3(), p));
+        }
+        poses.reverse();
+        return poses;
+    }
+
+    // Đặt vị trí/góc TUYỆT ĐỐI cho từng slot trên ring mỗi frame: ringProgress tăng dần liên tục, vị trí
+    // mỗi slot = hàm số của (index cố định, ringProgress) nên không tích luỹ sai số theo thời gian.
+    updateRingSlots(deltaTime: number) {
+        if(!this.ringNode?.isValid || this.ringSlotCount == 0) return;
+        this.ringProgress = (this.ringProgress + deltaTime / this.ringRevolveSeconds) % 1;
+        let dir = this.ringReverse ? -1 : 1;
+        for(let i = 0; i < this.ringRows.length; i++) {
+            let row = this.ringRows[i];
+            if(!row || row.moving) continue;
+            let pos = this.ringPointAt(i / this.ringSlotCount + dir * this.ringProgress);
+            row.node.position = pos;
+            row.node.eulerAngles = v3(0, 0, this.computeFacingAngle(pos, this.ringCenter));
+        }
+    }
+
+    isEmptySlot(i: number): boolean {
+        let row = this.ringRows[i];
+        return !!row && !row.moving && row.humans.length == 0;
+    }
+
+    // Gom các slot rỗng liền kề (có xử lý vòng qua mốc đầu/cuối vì ring khép kín) thành từng khoảng.
+    // Bắt đầu quét ngay SAU 1 slot không rỗng để 1 khoảng không bị cắt đôi ở mốc index 0/n-1.
+    getEmptyGaps(): number[][] {
+        let n = this.ringRows.length;
+        let gaps: number[][] = [];
+        if(n == 0) return gaps;
+
+        let start = 0;
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) { start = (i + 1) % n; break; }
+        }
+
+        let visited = new Array(n).fill(false);
+        for(let k = 0; k < n; k++) {
+            let i = (start + k) % n;
+            if(visited[i] || !this.isEmptySlot(i)) continue;
+            let gap: number[] = [];
+            let j = i;
+            while(!visited[j] && this.isEmptySlot(j)) {
+                visited[j] = true;
+                gap.push(j);
+                j = (j + 1) % n;
+            }
+            gaps.push(gap);
+        }
+        return gaps;
+    }
+
+    // Mỗi slot trống được gán CỐ ĐỊNH cho 1 bên (slotOwner) từ lúc trống tới lúc được feed. Trong 1 khoảng
+    // trống liền nhau, slot kề nhau gán xen kẽ trái/phải; slot đầu tiên của khoảng gán cho bên đang được
+    // gán ít hơn → tổng thể 50/50. Bên nào hết người thì bên kia lấy luôn slot đó.
+    // (leftFeedAngle/rightFeedAngle ± tolerance quyết định THỜI ĐIỂM feed.)
+    slotOwner: ('L' | 'R')[] = [];
+    leftAssigned: number = 0;
+    rightAssigned: number = 0;
+    assignSlot(i: number, owner: 'L' | 'R') {
+        this.slotOwner[i] = owner;
+        if(owner == 'L') this.leftAssigned++;
+        else this.rightAssigned++;
+    }
+    tryFeedEmptySlots() {
+        let n = this.ringRows.length;
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) this.slotOwner[i] = undefined;
+        }
+        this.getEmptyGaps().forEach(gap => {
+            let first = gap.findIndex(i => this.slotOwner[i]);
+            if(first < 0) {
+                first = 0;
+                this.assignSlot(gap[0], this.leftAssigned <= this.rightAssigned ? 'L' : 'R');
+            }
+            // lan ra 2 phía từ slot đã có chủ, slot kề nhau khác bên nhau
+            for(let k = first + 1; k < gap.length; k++) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k - 1]] == 'L' ? 'R' : 'L');
+            }
+            for(let k = first - 1; k >= 0; k--) {
+                if(!this.slotOwner[gap[k]]) this.assignSlot(gap[k], this.slotOwner[gap[k + 1]] == 'L' ? 'R' : 'L');
+            }
+        });
+
+        for(let i = 0; i < n; i++) {
+            if(!this.isEmptySlot(i)) continue;
+            let a = this.getSlotAngle(i);
+            let owner = this.slotOwner[i];
+            let leftOk = owner == 'L' || this.rightQueue.length == 0;
+            let rightOk = owner == 'R' || this.leftQueue.length == 0;
+            if(leftOk && this.leftQueue.length > 0
+            && this.angleDist(a, this.leftFeedAngle) <= this.leftFeedAngleTolerance) {
+                this.feedSlotFrom(this.leftQueue, this.leftLposes, i);
+            } else if(rightOk && this.rightQueue.length > 0
+            && this.angleDist(a, this.rightFeedAngle) <= this.rightFeedAngleTolerance) {
+                this.feedSlotFrom(this.rightQueue, this.rightLposes, i);
+            }
+        }
+    }
+
+    // ringRow (this.ringRows[slotIndex]) là node CỐ ĐỊNH, chỉ có NGƯỜI được chuyển từ feederRow (đầu hàng
+    // chờ) vào bên trong nó. Người được add ngay vào ringRow.node (addToParent giữ world pos/rot) rồi tween
+    // tới chỗ trong row, nên tự bám theo ring đang quay suốt lúc tween.
+    feedSlotFrom(queue: HumanRow[], lposes: Vec3[], slotIndex: number) {
+        let feederRow = queue.shift();
+        if(!feederRow) return;
+
+        let ringRow = this.ringRows[slotIndex];
+        if(!ringRow) return;
+
+        // chặn feed đè lần 2 lên cùng slot / checkBus lấy người lúc đang dở dang
+        ringRow.moving = true;
+
+        let duration = 0.2;
+        let humans = feederRow.humans;
+        let doneCount = 0;
+
+        // Row rỗng thì finalize ngay, tránh ringRow.moving kẹt mãi true.
+        if(humans.length == 0) {
+            ringRow.humans = humans;
+            ringRow.color = feederRow.color;
+            feederRow.node.destroy();
+            ringRow.moving = false;
+        }
+
+        humans.forEach((h, i) => {
+            Ulis.addToParent(h.node, ringRow.node);
+            h.row = ringRow;
+            h.setMoving(true);
+
+            let targetAngle = nearestAngle(90, h.node.eulerAngles.z);
+
+            tween(h.node)
+            .to(duration, {
+                position: this.rowLocalPos(i, humans.length, v3(0, this.humanDis.y, 0)),
+                eulerAngles: v3(0, 0, targetAngle),
+            })
+            .call(() => {
+                doneCount++;
+                // Chỉ finalize khi TẤT CẢ người trong row đã tween xong.
+                if(doneCount == humans.length) {
+                    ringRow.humans = humans;
+                    ringRow.color = feederRow.color;
+                    this.activateRingHumans(ringRow);
+                    feederRow.node.destroy();
+                    ringRow.moving = false;
+                }
+            })
+            .start();
+        });
+
+        // Các row còn lại trong hàng chờ dịch lên lấp chỗ trống: bật chạy lúc di chuyển, xong thì idle.
+        queue.forEach((r, i) => {
+            let target = lposes[i] || r.node.position;
+            this.faceQueueRow(r, target, i > 0 ? lposes[i - 1] : null, lposes[i + 1] || null);
+            r.humans.forEach(h => h.setMoving(true));
+            tween(r.node)
+            .to(0.4, { position: target })
+            .call(() => {
+                r.humans.forEach(h => h.setMoving(false));
+            })
+            .start();
+        });
+
+        // Còn dữ liệu chưa dùng thì đẻ thêm 1 row mới lấp đúng chỗ trống cuối hàng chờ vừa dịch ra.
+        if(this.pendingRows.length > 0 && queue.length < lposes.length) {
+            let colors = this.pendingRows.shift();
+            let idx = queue.length;
+            let pos = lposes[idx];
+            let isLeft = queue === this.leftQueue;
+            let offset = isLeft ? v3(0, -this.humanDis.y, 0) : null;
+            let newRow = this.spawnRow(colors, isLeft ? this.rowLeftNode : this.rowRightNode, pos, offset);
+            this.faceQueueRow(newRow, pos, idx > 0 ? lposes[idx - 1] : null, lposes[idx + 1] || null);
+            this.orientQueueHumans(newRow);
+            queue.push(newRow);
+        }
+    }
+
+    // ring kín (mọi slot đều có người) — điều kiện thua của map RingFeeder
+    isRingFull(): boolean {
+        if(this.ringRows.length == 0) return false;
+        return this.ringRows.every(r => r && r.humans.length > 0);
+    }
+
+    // xe trong slot lấy người từ các row đúng màu đang ở vùng chính diện (tối đa bus.remain người)
+    checkBus(bus: Bus): Human[] {
+        let humans: Human[] = [];
+        if(bus.moving) return humans;
+
+        let color = bus.color;
+        let r = bus.remain;
+        if(r == 0) return humans;
+
+        for(let frontRow of this.getFrontRows().filter(row => row.color == color)) {
+            if(r <= 0) break;
+            let iHumans = [...frontRow.humans];
+            let h = iHumans[0];
+            while(h && !h.bus && h.color == color
+            && r > 0 && iHumans.length > 0 && !bus.humans.includes(h)) {
+                iHumans.shift();
+                humans.push(h);
+                h.bus = bus;
+                h.pTween?.stop();
+                h.rTween?.stop();
+                r--;
+                h = iHumans[0];
+            }
+        }
+
+        bus.remain = r;
+
+        if(humans.length > 0) {
+            bus.packing = true;
+            bus.pHumans = bus.pHumans.concat(humans);
+            humans.forEach(h => {
+                Ulis.addToParent(h.node, this.human);
+                this.moveHuman(h, bus);
+            });
+        }
+
+        return humans;
+    }
+
+    // map RingFeeder: đổ row từ hàng chờ vào slot trống, xe trong slot lấy người ở vùng chính diện
+    boardFeederRing() {
+        this.tryFeedEmptySlots();
+        this.outsideHumans = this.getFrontHumans();
+        let humans: Human[] = [];
+        this.slots.map(s => s.bus).filter(b => b).forEach(b => {
+            humans = humans.concat(this.checkBus(b));
+        });
+        if(humans.length > 0) this.removeHumans(humans);
     }
 
     printData() {        
@@ -1506,17 +2090,23 @@ export class Game extends Component {
     removeHuman(human: Human) {
         this.dropHuman(human);
 
-        let row: RingRow = human.row;
+        let row: RingRow | HumanRow = human.row;
         if(row) {
             let j = row.humans.indexOf(human);
             if(j >= 0) {
                 row.humans.splice(j, 1);
-                row.lanes.splice(j, 1);
+                if(row instanceof RingRow) row.lanes.splice(j, 1);
             }
         }
         human.row = null;
+        if(this.isFeeder()) this.outsideHumans = this.getFrontHumans();
 
         this.movingHumans.push(human);
+    }
+
+    removeHumans(humans: Human[]) {
+        humans.forEach(h => this.removeHuman(h));
+        this.tryFeedEmptySlots();
     }
 
     getHumansAround(human: Human) {
@@ -1941,8 +2531,12 @@ export class Game extends Component {
             let time = Ulis.moveTo(bus.node, sp, () => {
                 Ulis.moveTo(bus.node, sl, () => {
                     bus.smokint();
-                    // người lên xe ở lối ra của ring (checkRingExit)
+                    // Ring3D: người lên xe ở lối ra của ring (checkRingExit); RingFeeder: lấy luôn người ở vùng chính diện
                     bus.onSlot();
+                    if(this.isFeeder()) {
+                        let humans = this.checkBus(bus);
+                        if(humans.length > 0) this.removeHumans(humans);
+                    }
                 }, this.busSpeed, true, null, 0.3);
             }, this.busSpeed, true, null, 0.3);
             let paScale = this.bus.getScale();
@@ -2016,14 +2610,20 @@ export class Game extends Component {
         }, 2000);
     }
 
+    // ring hết đường cứu: Ring3D = không row nào cùng màu xe đang chờ; RingFeeder = ring kín người
+    ringStuck() {
+        return this.isFeeder() ? this.isRingFull() : !this.ringCanBoard();
+    }
+
     checkBuses() {
-        // người lên xe ở lối ra của ring (checkRingExit, gọi trong updateRing) — ở đây chỉ xét thua
+        // Ring3D: người lên xe ở lối ra của ring (checkRingExit, gọi trong updateRing) — ở đây chỉ xét thua
+        if(this.isFeeder()) this.boardFeederRing();
         if(this.movingHumans.length == 0 && !this.slots.find(s => !s.bus)) {
 
             let buses = this.slots.map(s => s.bus).filter(b => b);
             let movingBus = buses.find(b => b.moving || b.packing);
 
-            if(!movingBus && !this.lose && !this.ringCanBoard() && !this.loseCheckTween) {
+            if(!movingBus && !this.lose && this.ringStuck() && !this.loseCheckTween) {
 
                 console.log("Check lose");
 
@@ -2034,7 +2634,7 @@ export class Game extends Component {
 
                     if(this.movingHumans.length == 0 && !this.slots.find(s => !s.bus)) {
                         let movingBus = buses.find(b => b.moving || b.packing);
-                        if(!movingBus && !this.lose && !this.ringCanBoard() && !this.loseCheckTween) {
+                        if(!movingBus && !this.lose && this.ringStuck() && !this.loseCheckTween) {
 
                             AppLovinAnalytics.challengeFailed();
                             this.checkTut();
@@ -2219,7 +2819,9 @@ export class Game extends Component {
     }
 
     update(deltaTime: number) {
-        if(!EDITOR_NOT_IN_PREVIEW) this.updateRing(deltaTime);
+        if(EDITOR_NOT_IN_PREVIEW) return;
+        if(this.isFeeder()) this.updateRingSlots(deltaTime);
+        else this.updateRing(deltaTime);
     }
 
     onDestroy() {
