@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onAfterBuild = exports.onError = exports.unload = exports.load = exports.throwError = void 0;
+const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const global_1 = require("./global");
 const channels_1 = require("./channels");
@@ -45,6 +46,27 @@ function log(...arg) {
 /** Mỗi kênh giờ là 1 field checkbox độc lập (packages.playable-ads-builder.channel_<Tên>) */
 function resolveSelectedChannels(pkgOptions) {
     return channels_1.CHANNEL_SORTED.filter(channel => pkgOptions[(0, channels_1.channelFieldKey)(channel)] === true);
+}
+/**
+ * Có scene nào trong build bật Video Mode (component BuildManager, `_videoMode` = true) không.
+ * Scene lưu class custom bằng uuid nén nên nhận diện qua cặp field `_videoMode` + `hiddenByMode`.
+ */
+async function isVideoModeBuild(options) {
+    for (const scene of options.scenes || []) {
+        try {
+            const file = await Editor.Message.request('asset-db', 'query-path', scene.uuid);
+            if (!file || !fs.existsSync(file))
+                continue;
+            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+            if (Array.isArray(data) && data.some((o) => o && o._videoMode === true && 'hiddenByMode' in o)) {
+                return true;
+            }
+        }
+        catch (err) {
+            console.warn(`[${global_1.PACKAGE_NAME}] Không đọc được scene ${scene.url} để kiểm tra VideoMode:`, err);
+        }
+    }
+    return false;
 }
 exports.throwError = true;
 const load = async function () {
@@ -87,6 +109,11 @@ const onAfterBuild = async function (options, result) {
         ? pkgOptions.outputPath.trim()
         : path.join(webMobileDir, '..', '..', (0, packager_1.sanitizeFolderName)(gameName));
     const cocosVersion = (result.settings && result.settings.CocosEngine) || 'unknown';
+    // Bản Video: giữ nguyên chất lượng ảnh + audio (không nén), bỏ qua cấu hình nén trong panel.
+    const videoMode = await isVideoModeBuild(options);
+    if (videoMode) {
+        log('Phát hiện VideoMode đang bật -> Image Compression = None, Compress Audio = false.');
+    }
     log(`Bắt đầu đóng gói playable ad cho ${channels.length} kênh -> ${outputPath}`);
     try {
         const processed = await (0, playable_build_1.buildPlayableAds)(webMobileDir, cocosVersion, {
@@ -98,11 +125,11 @@ const onAfterBuild = async function (options, result) {
             channels,
             outputPath,
             compression: {
-                type: (pkgOptions.compressionType || channels_1.CompressionType.Lossy),
+                type: videoMode ? channels_1.CompressionType.None : (pkgOptions.compressionType || channels_1.CompressionType.Lossy),
                 quality: typeof pkgOptions.compressionQuality === 'number' ? pkgOptions.compressionQuality : 80,
             },
             audio: {
-                enabled: pkgOptions.audioCompressionEnabled !== false,
+                enabled: !videoMode && pkgOptions.audioCompressionEnabled !== false,
                 bitrate: typeof pkgOptions.audioBitrate === 'number' ? pkgOptions.audioBitrate : 64,
             },
         }, (stage, current, total) => {

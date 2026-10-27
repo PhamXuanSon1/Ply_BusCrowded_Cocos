@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { BuildHook, IBuildResult, ITaskOptions } from '../@types';
 import { PACKAGE_NAME } from './global';
@@ -12,6 +13,26 @@ function log(...arg: any[]) {
 /** Mỗi kênh giờ là 1 field checkbox độc lập (packages.playable-ads-builder.channel_<Tên>) */
 function resolveSelectedChannels(pkgOptions: any) {
     return CHANNEL_SORTED.filter(channel => pkgOptions[channelFieldKey(channel)] === true);
+}
+
+/**
+ * Có scene nào trong build bật Video Mode (component BuildManager, `_videoMode` = true) không.
+ * Scene lưu class custom bằng uuid nén nên nhận diện qua cặp field `_videoMode` + `hiddenByMode`.
+ */
+async function isVideoModeBuild(options: ITaskOptions): Promise<boolean> {
+    for (const scene of options.scenes || []) {
+        try {
+            const file = await Editor.Message.request('asset-db', 'query-path', scene.uuid);
+            if (!file || !fs.existsSync(file)) continue;
+            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+            if (Array.isArray(data) && data.some((o: any) => o && o._videoMode === true && 'hiddenByMode' in o)) {
+                return true;
+            }
+        } catch (err) {
+            console.warn(`[${PACKAGE_NAME}] Không đọc được scene ${scene.url} để kiểm tra VideoMode:`, err);
+        }
+    }
+    return false;
 }
 
 export const throwError: BuildHook.throwError = true;
@@ -58,6 +79,12 @@ export const onAfterBuild: BuildHook.onAfterBuild = async function(options: ITas
         : path.join(webMobileDir, '..', '..', sanitizeFolderName(gameName));
     const cocosVersion = (result.settings && (result.settings as any).CocosEngine) || 'unknown';
 
+    // Bản Video: giữ nguyên chất lượng ảnh + audio (không nén), bỏ qua cấu hình nén trong panel.
+    const videoMode = await isVideoModeBuild(options);
+    if (videoMode) {
+        log('Phát hiện VideoMode đang bật -> Image Compression = None, Compress Audio = false.');
+    }
+
     log(`Bắt đầu đóng gói playable ad cho ${channels.length} kênh -> ${outputPath}`);
 
     try {
@@ -70,11 +97,11 @@ export const onAfterBuild: BuildHook.onAfterBuild = async function(options: ITas
             channels,
             outputPath,
             compression: {
-                type: (pkgOptions.compressionType || CompressionType.Lossy) as CompressionType,
+                type: videoMode ? CompressionType.None : (pkgOptions.compressionType || CompressionType.Lossy) as CompressionType,
                 quality: typeof pkgOptions.compressionQuality === 'number' ? pkgOptions.compressionQuality : 80,
             },
             audio: {
-                enabled: pkgOptions.audioCompressionEnabled !== false,
+                enabled: !videoMode && pkgOptions.audioCompressionEnabled !== false,
                 bitrate: typeof pkgOptions.audioBitrate === 'number' ? pkgOptions.audioBitrate : 64,
             },
         }, (stage, current, total) => {

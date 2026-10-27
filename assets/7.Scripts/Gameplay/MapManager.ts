@@ -75,6 +75,14 @@ export class MapManager extends Component {
         if(EDITOR) this.applyFloor();
     }
 
+    /** đổi floor và chờ dựng xong instance prefab mới (BuildManager đổi floor rồi lưu scene ngay sau) */
+    async setFloor(v: FloorType) {
+        if(v === this._floor) return;
+        this._floor = v;
+        if(EDITOR) await this.applyFloor();
+        this.applyRoadColors();
+    }
+
     @property({ type: [FloorRoadColor], tooltip: "Màu đường của map theo floor đang chọn (Line3DRing + RingExitRoad trong Map Root).\nĐổi floor là đường tự đổi màu; floor không có trong danh sách thì giữ màu trong prefab map." })
     floorRoadColors: FloorRoadColor[] = [
         new FloorRoadColor(FloorType.BusStation, new Color(110, 112, 151, 255), new Color(56, 64, 150, 255)),
