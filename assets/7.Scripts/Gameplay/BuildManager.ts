@@ -1,4 +1,4 @@
-import { _decorator, Animation, CCString, Component, Node } from 'cc';
+import { _decorator, Animation, Component, Node } from 'cc';
 import { EDITOR } from 'cc/env';
 import { Game } from './Game';
 import { FloorType, MapManager } from './MapManager';
@@ -77,10 +77,10 @@ export class BuildManager extends Component {
     @property({ group: G_BUILD, type: [FloorType], tooltip: "Các floor cần build, mỗi floor ra 1 folder <Build Name>_<Floor>.\nĐể trống: chỉ build floor đang chọn." })
     buildFloors: FloorType[] = [];
 
-    @property({ group: G_BUILD, tooltip: "Bật: build bản Video (bật Video Mode, folder thêm hậu tố _Video, ảnh + audio không nén).\nTắt: build bản thường." })
+    @property({ group: G_BUILD, tooltip: "Bật: build bản Video (bật Video Mode, folder thêm hậu tố _Video).\n- Chỉ đóng gói kênh AppLovin, Image Compression = None, Compress Audio = tắt (bỏ qua cấu hình trong panel Build).\nTắt: build bản thường theo cấu hình panel Build." })
     buildVideo = false;
 
-    @property({ group: G_BUILD, type: CCString, tooltip: "Tên gốc của các folder build.\nĐể trống: lấy Name của lần build web-mobile gần nhất (bỏ hậu tố _<Floor> / _Video nếu có)." })
+    @property({ group: G_BUILD, tooltip: "Tên gốc của các folder build.\nĐể trống: lấy Name của lần build web-mobile gần nhất (bỏ hậu tố _<Floor> / _Video nếu có)." })
     buildName = "";
 
     @property({ group: G_BUILD, tooltip: "Tick để build lần lượt từng floor trong Build Floors.\n- Cần build web-mobile 1 lần bằng panel Build trước (lấy cấu hình + kênh quảng cáo từ đó).\n- Mỗi lần build sẽ đổi floor + lưu scene; xong trả lại floor / Video Mode cũ và lưu scene.\n- Xem tiến độ trong Console, đừng sửa scene khi đang build." })
@@ -157,8 +157,9 @@ export class BuildManager extends Component {
             return;
         }
         const info = await Editor.Message.request("builder", "query-tasks-info");
+        // bỏ qua các lần build _Video (đã bị ép chỉ AppLovin + không nén) để bản thường giữ đủ kênh / cấu hình nén
         const last = Object.values<any>(info?.queue || {})
-            .filter(t => t?.options?.platform === "web-mobile")
+            .filter(t => t?.options?.platform === "web-mobile" && !/_Video$/.test(t.options.name || ""))
             .sort((a, b) => +b.id - +a.id)[0];
         if(!last) {
             console.error("BuildManager: chưa có lần build web-mobile nào, build 1 lần bằng panel Build trước");
@@ -175,13 +176,14 @@ export class BuildManager extends Component {
 
         const oldFloor = this.mapManager.floor;
         const oldVideo = this._videoMode;
+        const taskIds = new Set(Object.keys(info.queue || {}));
         this.building = true;
         const results: string[] = [];
         try {
             this.videoMode = this.buildVideo;
             for(const floor of floors) {
                 await this.mapManager.setFloor(floor);
-                await Editor.Message.request("scene", "save-scene");
+                await this.saveScene();
 
                 const name = baseName + "_" + FloorType[floor] + (this.buildVideo ? "_Video" : "");
                 const options = JSON.parse(JSON.stringify(last.options));
@@ -190,6 +192,13 @@ export class BuildManager extends Component {
                 // outputPath tự đặt trong panel: mỗi bản 1 folder con, không ghi đè nhau
                 const pkg = options.packages?.["playable-ads-builder"];
                 if(pkg?.outputPath?.trim()) pkg.outputPath = pkg.outputPath.trim().replace(/[\\/]+$/, "") + "/" + name;
+                // bản Video chỉ cần 1 file AppLovin, ảnh + audio giữ nguyên chất lượng
+                if(pkg && this.buildVideo) {
+                    for(const k in pkg) if(k.startsWith("channel_")) pkg[k] = false;
+                    pkg.channel_AppLovin = true;
+                    pkg.compressionType = "none";
+                    pkg.audioCompressionEnabled = false;
+                }
 
                 console.log(`BuildManager: build ${name} (${results.length + 1}/${floors.length})...`);
                 const code = await Editor.Message.request("builder", "add-task", options, true);
@@ -202,9 +211,45 @@ export class BuildManager extends Component {
         } finally {
             this.videoMode = oldVideo;
             await this.mapManager.setFloor(oldFloor);
-            await Editor.Message.request("scene", "save-scene");
+            try {
+                await this.saveScene();
+            } catch(err) {
+                console.error("BuildManager: không lưu được scene sau khi build, hãy Ctrl+S thủ công", err);
+            }
+            await this.removeTasksExcept(taskIds);
             this.building = false;
             console.log("BuildManager: xong\n" + results.join("\n"));
+        }
+    }
+
+    // add-task tạo 1 bản ghi mới trong Build history mỗi lần -> xoá các bản ghi BuildManager vừa tạo, chỉ giữ
+    // task gốc trong panel Build. Xoá ngay khi build vừa xong thì builder coi là huỷ task ("build task was
+    // interrupted") nên chờ vài giây cho builder đóng task hẳn rồi mới xoá.
+    private async removeTasksExcept(keep: Set<string>) {
+        const Editor = (globalThis as any).Editor;
+        try {
+            await new Promise(r => setTimeout(r, 3000));
+            const info = await Editor.Message.request("builder", "query-tasks-info");
+            for(const id of Object.keys(info?.queue || {})) {
+                if(!keep.has(id)) await Editor.Message.request("builder", "remove-task", id);
+            }
+        } catch(err) {
+            console.warn("BuildManager: không xoá được bản ghi build cũ trong Build history", err);
+        }
+    }
+
+    // Build xong file scene còn bị giữ 1 lúc (Windows báo UNKNOWN khi open) -> chờ rồi thử lại
+    private async saveScene() {
+        const Editor = (globalThis as any).Editor;
+        for(let i = 1; ; i++) {
+            try {
+                await Editor.Message.request("scene", "save-scene");
+                return;
+            } catch(err) {
+                if(i >= 10) throw err;
+                console.warn(`BuildManager: chưa lưu được scene (lần ${i}), thử lại sau 1s...`);
+                await new Promise(r => setTimeout(r, 1000));
+            }
         }
     }
 }
