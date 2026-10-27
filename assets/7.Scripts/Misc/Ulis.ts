@@ -163,6 +163,25 @@ export default class Ulis {
         );
     }
 
+  /** Ray cắt hộp AABB [min, max] (cùng hệ toạ độ với ray). Trả về t của điểm chạm đầu tiên (>= 0), không chạm thì null. */
+  static rayBox(rayOrigin: Vec3, rayDir: Vec3, min: Vec3, max: Vec3): number | null {
+        let tMin = -Infinity, tMax = Infinity;
+        for (const k of ['x', 'y', 'z'] as const) {
+            const o = rayOrigin[k], d = rayDir[k];
+            if (Math.abs(d) < 1e-9) {
+                // Ray song song với 2 mặt này: phải nằm giữa thì mới có thể chạm
+                if (o < min[k] || o > max[k]) return null;
+                continue;
+            }
+            let t1 = (min[k] - o) / d, t2 = (max[k] - o) / d;
+            if (t1 > t2) [t1, t2] = [t2, t1];
+            tMin = Math.max(tMin, t1);
+            tMax = Math.min(tMax, t2);
+            if (tMin > tMax || tMax < 0) return null;
+        }
+        return Math.max(tMin, 0);
+    }
+
   static rayPlane(
     rayOrigin: Vec3,
     rayDir: Vec3,

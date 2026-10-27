@@ -125,6 +125,31 @@ export class Bus extends PoolMember {
         });
     }
 
+    // Khối thân xe thật (mesh Color trong Box) theo local của node xe — dùng để bắt click khớp với hình xe nhìn thấy.
+    // Không có mesh thì dùng center / size.
+    pickMin: Vec3 = null;
+    pickMax: Vec3 = null;
+    getPickBox() {
+        if(!this.pickMin) {
+            let body = this.box?.getChildByName("Color")?.getComponent(MeshRenderer);
+            let s = body?.mesh?.struct;
+            if(s?.minPosition && s?.maxPosition) {
+                this.pickMin = v3(Infinity, Infinity, Infinity);
+                this.pickMax = v3(-Infinity, -Infinity, -Infinity);
+                for(let i = 0; i < 8; i++) {
+                    let p = v3(i & 1 ? s.maxPosition.x : s.minPosition.x, i & 2 ? s.maxPosition.y : s.minPosition.y, i & 4 ? s.maxPosition.z : s.minPosition.z);
+                    p = this.node.inverseTransformPoint(v3(), Vec3.transformMat4(v3(), p, body.node.worldMatrix));
+                    Vec3.min(this.pickMin, this.pickMin, p);
+                    Vec3.max(this.pickMax, this.pickMax, p);
+                }
+            } else {
+                this.pickMin = this.center.clone().subtract(this.size.clone().multiplyScalar(0.5));
+                this.pickMax = this.center.clone().add(this.size.clone().multiplyScalar(0.5));
+            }
+        }
+        return [this.pickMin, this.pickMax];
+    }
+
     getRect() {
         let center = Ulis.getWpos(this.center.clone(), this.node);
         let scale = this.node.getWorldScale();

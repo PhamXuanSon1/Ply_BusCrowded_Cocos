@@ -2261,32 +2261,21 @@ export class Game extends Component {
 
         let rayOrigin: Vec3 = ui.wCamera.screenToWorld(v3(pos.x, pos.y, 0));
         let rayDir: Vec3 = ui.wCamera.node.forward.clone().normalize();
-        let planePoint: Vec3 = this.bound.node.getWorldPosition();
-        let planeNormal: Vec3 = this.bound.node.forward.clone().normalize();
-        
-        const invRot = this.bound.node.getWorldRotation();
-        let rs = Ulis.rayPlane(rayOrigin, rayDir, planePoint, planeNormal);
 
-        rs = this.bound.node.inverseTransformPoint(v3(), rs);
-
-        let box = this.buses.find(b => {
-
-            let bUp = b.node.up.clone();
-            bUp = Vec3.transformQuat(v3(), bUp, invRot);
-
-            let angle = -Math.atan2(bUp.x, bUp.y);
-            angle = toDegree(angle);
-
-            let ws = this.bound.node.getWorldScale();
-
-            let r = b.getRect3();
-            let ct = v3(r.x + r.width/2, r.y + r.height/2, r.z + r.depth/2);
-            let sz = v3(r.width, r.height, r.depth);
-            ct = this.bound.node.inverseTransformPoint(v3(), ct);
-            sz = sz.multiply3f(1/ws.x, 1/ws.y, 1/ws.z);            
-            let rt = rect(ct.x - sz.x/2, ct.y - sz.y/2, sz.x, sz.y);
-
-            return Ulis.pointRect(v2(rs.x, rs.y), rt, angle);
+        // bắn tia vào khối thân thật của từng xe (cả nóc lẫn hông), xe nào tia chạm trước (gần camera nhất) thì nhận click
+        let box: Bus = null;
+        let bestDist = Infinity;
+        this.buses.forEach(b => {
+            let [mn, mx] = b.getPickBox();
+            let o = b.node.inverseTransformPoint(v3(), rayOrigin);
+            let d = b.node.inverseTransformPoint(v3(), rayOrigin.clone().add(rayDir)).subtract(o);
+            let hit = Ulis.rayBox(o, d, mn, mx);
+            if(hit === null) return;
+            let dist = Vec3.distance(rayOrigin, Ulis.getWpos(o.add(d.multiplyScalar(hit)), b.node));
+            if(dist < bestDist) {
+                bestDist = dist;
+                box = b;
+            }
         });
 
         if(box && !box.moving) {
