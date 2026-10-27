@@ -19,6 +19,7 @@ export enum FloorType {
     Park,
     PinkSakura,
     Winter,
+    GreenScreen,    // phông xanh #00FF00 (unlit) cho quay video tách nền; chỉ floor phía trên, nền khu xe giữ nguyên
 }
 Enum(FloorType);
 
@@ -80,6 +81,7 @@ export class MapManager extends Component {
         new FloorRoadColor(FloorType.Park, new Color(132, 102, 78, 255), new Color(34, 88, 40, 255)),
         new FloorRoadColor(FloorType.PinkSakura, new Color(136, 86, 106, 255), new Color(142, 32, 72, 255)),
         new FloorRoadColor(FloorType.Winter, new Color(92, 118, 160, 255), new Color(32, 68, 136, 255)),
+        new FloorRoadColor(FloorType.GreenScreen, new Color(110, 110, 134, 255), new Color(255, 255, 255, 255)),
     ];
 
     @property({ tooltip: "Tick để dựng lại map + floor đang chọn (vd sau khi sửa prefab hoặc lỡ xoá node)." })

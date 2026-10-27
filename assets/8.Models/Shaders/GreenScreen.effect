@@ -1,0 +1,46 @@
+// Phông xanh cho Floor_GreenScreen: xuất thẳng mainColor ra màn hình, KHÔNG qua CCFragOutput.
+// Scene chạy HDR nên CCFragOutput tone map (ACES) làm 255 tụt còn ~229 -> nền không đúng #00FF00, khó tách nền.
+// mainColor nhập bằng giá trị sRGB đúng như muốn thấy trên màn hình (không đổi linear).
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      properties: &props
+        mainColor:      { value: [0, 1, 0, 1], editor: { type: color } }
+    - vert: unlit-vs:vert
+      frag: unlit-fs:frag
+      phase: deferred-forward
+      propertyIndex: 0
+}%
+
+CCProgram unlit-vs %{
+  precision highp float;
+  #include <legacy/input>
+  #include <builtin/uniforms/cc-global>
+  #include <legacy/decode-base>
+  #include <legacy/local-batch>
+
+  vec4 vert () {
+    vec4 position;
+    CCVertInput(position);
+
+    mat4 matWorld;
+    CCGetWorldMatrix(matWorld);
+
+    return cc_matProj * (cc_matView * matWorld) * position;
+  }
+}%
+
+CCProgram unlit-fs %{
+  precision highp float;
+
+  uniform Constant {
+    vec4 mainColor;
+  };
+
+  vec4 frag () {
+    return vec4(mainColor.rgb, 1.0);
+  }
+}%
