@@ -233,6 +233,29 @@ export class Game extends Component {
         this.bus?.getComponentsInChildren(Bus).forEach(b => b.node.setScale(v, v, v));
     }
 
+    @property
+    private _busSpacing: Vec2 = v2(1, 1);
+    @property({ group: G_TOOL, type: Vec2, tooltip: "Hệ số giãn cách các xe (x = chiều ngang, y = chiều dọc), 1 = như BusData gốc.\n- Giãn quanh tâm bãi xe (bãi nở đều 2 phía), không đổi cỡ / hướng / số lượng xe.\n- BusData vẫn lưu ở toạ độ gốc (Save Bus Data tự chia lại hệ số này).\n- Giãn khác nhau giữa 2 chiều có thể đổi xe nào chặn xe nào: chỉnh xong tick Save Bus Data." })
+    get busSpacing() { return this._busSpacing; }
+    set busSpacing(v: Vec2) {
+        let sx = Math.max(0.1, v.x), sy = Math.max(0.1, v.y);
+        let rx = sx / this._busSpacing.x, ry = sy / this._busSpacing.y;
+        this._busSpacing = v2(sx, sy);
+        let buses = this.bus?.getComponentsInChildren(Bus) ?? [];
+        let c = this.getBoundsCenter(buses.map(b => b.node.position));
+        buses.forEach(b => {
+            let p = b.node.position;
+            b.node.setPosition(c.x + (p.x - c.x) * rx, c.y + (p.y - c.y) * ry, p.z);
+        });
+    }
+
+    // tâm khung bao các vị trí xe — giãn quanh tâm này nên bãi xe nở đều 2 phía, tâm không đổi khi giãn
+    getBoundsCenter(ps: Readonly<Vec3>[]): Vec2 {
+        if(!ps.length) return v2(0, 0);
+        let xs = ps.map(p => p.x), ys = ps.map(p => p.y);
+        return v2((Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
+    }
+
     // Gộp Print Bus Data + Print Block Data + Print Cached Path: đọc xe trên scene → BusData, dựng lại xe
     // từ data (spawn mới theo `type` nên đổi kiểu xe trong Inspector cũng ăn), tính ObstacleData +
     // LinearHumanData từ xe vừa dựng, rồi ghi đè 3 mảng đó trong Data.ts. Mảng import được sửa
@@ -240,9 +263,10 @@ export class Game extends Component {
     async saveBuses() {
         this.printData();
         let sceneBuses = this.bus.getComponentsInChildren(Bus);
+        let c = this.getBoundsCenter(sceneBuses.map(b => b.node.position));
         let busData = sceneBuses.map(bus => {
-            let x = bus.node.position.x / this.disMul.x;
-            let y = bus.node.position.y / this.disMul.y;
+            let x = (c.x + (bus.node.position.x - c.x) / this._busSpacing.x) / this.disMul.x;
+            let y = (c.y + (bus.node.position.y - c.y) / this._busSpacing.y) / this.disMul.y;
             return [bus.type - PoolType.Bus, bus.dColor, truncate(x, 3), truncate(y, 3), truncate(bus.node.eulerAngles.z, 3)];
         });
         BusData.length = 0;
@@ -631,7 +655,8 @@ export class Game extends Component {
     }
 
     score: number = 0;
-    amount: number = 5;
+    @property({ group: G_STORE, tooltip: "Số IQ cộng thêm mỗi khi 1 xe đầy khách (cũng là số bay lên từ xe vào ô Brain)." })
+    amount: number = 2;
     setScore() {
         this.score += this.amount;
         this.brainText.string = this.score.toString();
@@ -821,6 +846,7 @@ export class Game extends Component {
         let typeBuses: Bus[][] = [];
         let max = 999;
         let data = BusData.slice(0, max);
+        let c = this.getBoundsCenter(data.map(d => v3(d[2] * this.disMul.x, d[3] * this.disMul.y, 0)));
         data.forEach((data, i) => {
             let type = data[0] + PoolType.Bus;
             let iColor = data[1];
@@ -846,7 +872,9 @@ export class Game extends Component {
             // console.log(bus.node.name);
             
             bus.node.eulerAngles = v3(0, 0, angle);
-            bus.node.setPosition(v3(x, y, 0).multiply3f(this.disMul.x, this.disMul.y, 1));
+            bus.node.setPosition(
+                c.x + (x * this.disMul.x - c.x) * this._busSpacing.x,
+                c.y + (y * this.disMul.y - c.y) * this._busSpacing.y, 0);
             bus.node.setScale(this._busScale, this._busScale, this._busScale);
             bus.node._objFlags = 
             // CCObject.Flags.DontSave 
