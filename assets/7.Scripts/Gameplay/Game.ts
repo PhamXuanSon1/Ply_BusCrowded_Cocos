@@ -844,6 +844,7 @@ export class Game extends Component {
         this.buses = [];
         let buses = this.bus.getComponentsInChildren(Bus);
         let typeBuses: Bus[][] = [];
+        let used = new Set<Bus>();   // xe có sẵn trong scene đã được dùng lại
         let max = 999;
         let data = BusData.slice(0, max);
         let c = this.getBoundsCenter(data.map(d => v3(d[2] * this.disMul.x, d[3] * this.disMul.y, 0)));
@@ -866,6 +867,7 @@ export class Game extends Component {
             // console.log(type, x, y, angle);
             
             let bus = typeBuses[type].pop();
+            if(bus) used.add(bus);
             if(!bus) bus = pm.spawnType<Bus>(type);
             bus.node.parent = this.bus;
             bus.node.name = PoolType[type] + "_" + i;
@@ -895,10 +897,13 @@ export class Game extends Component {
             }
 
         })
-        typeBuses.forEach((buses) => {
-            buses.forEach((bus) => {
-                bus.node.destroy();
-            })
+        // Xe có sẵn trong scene mà BusData không dùng tới (kể cả kiểu xe không có trong data):
+        // gỡ khỏi cây node trước rồi mới destroy — trong editor chỉ destroy thì node vẫn nằm lại
+        // scene (hiện xe đỏ mặc định với nhãn "?" chồng lên map mới).
+        buses.forEach((bus) => {
+            if(used.has(bus) || !bus.isValid) return;
+            bus.node.removeFromParent();
+            bus.node.destroy();
         })
     }
 
