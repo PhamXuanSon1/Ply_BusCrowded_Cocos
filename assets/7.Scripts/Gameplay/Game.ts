@@ -57,6 +57,8 @@ export class RingRow {
     // quãng đường lần trước, để biết row vừa vòng từ cuối đường về đầu vào
     lastDis: number = -1;
     wrapped: boolean = false;
+    // stopFinishedSpawn: màu row vừa hết xe lúc cụm của nó đang ra ở đầu vào -> được hiện lại 1 lần cho hết lượt
+    finishTurn: boolean = false;
 }
 
 // 1 row người của map RingFeeder: trên ring (node cố định theo slot) hoặc trên 1 trong 2 hàng chờ
@@ -141,6 +143,8 @@ export class Game extends Component {
     loopRowsMax: number = 4;
     @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Xử lý màu đã hết xe cần người:\n- Tắt: cụm màu đó vẫn chạy trên ring, chuỗi màu vẫn quay đều mọi màu trong màn.\n- Bật: đổi ngay cả cụm sang màu còn cần và bỏ màu đó khỏi chuỗi → ring chỉ còn màu có ích, dễ thắng hơn." })
     recolorFinished: boolean = false;
+    @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop && !this.recolorFinished; }, tooltip: "(ColorLoop) Ngừng sinh người của màu vừa hết xe (không còn xe nào ở bãi hay trong slot cần màu đó):\n- Cụm màu đó đang ra ở đầu vào thì vẫn ra nốt lượt đó.\n- Sau đó row màu đó chạy hết đường thì biến mất, không hiện lại ở đầu vào nữa; ô trống được lấp bằng màu còn cần.\n- Người còn thừa đang chạy trên ring không bị đổi màu đột ngột.\nKhác Recolor Finished: không tô lại ngay cả cụm, chỉ ngừng sinh thêm." })
+    stopFinishedSpawn: boolean = false;
     @property({ group: G_SPAWN, type: FillMode, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Khi đã phát hết row cho mọi xe mà ring còn ô trống:\n- None: để trống.\n- WinColors: lấp bằng màu các xe còn chờ người (dư người giúp thắng).\n- LevelColors: lấp bằng mọi màu có trong màn." })
     fillMode: FillMode = FillMode.LevelColors;
 
@@ -1163,6 +1167,7 @@ export class Game extends Component {
         this.ringSlots = Array(count).fill(null);
         this.ringSlotColors = Array(count).fill(-1);
         this.ringExit = road.getExitRange();
+        this.finishedKey = '';
 
         this.resetSpawnSequence();
         // đổ sẵn từ ô gần cuối đường trở về đầu -> những màu chọn trước nằm gần lối ra hơn
@@ -1284,7 +1289,7 @@ export class Game extends Component {
     // trong các màu xe (tăng dần theo index màu), qua màu lớn nhất thì vòng về màu nhỏ nhất
     nextLoopColor(): number {
         // recolorFinished tắt: quay đều mọi màu có trong màn (kể cả màu đã hết xe)
-        let colors = this.recolorFinished
+        let colors = (this.recolorFinished || this.stopOn())
             ? Array.from(new Set(this.activeBuses().filter(b => b.remain > 0).map(b => b.color as number)))
             : this.levelColors();
         // lúc dựng ring đầu tiên xe có thể chưa có remain -> lấy màu từ BusData
@@ -1299,6 +1304,76 @@ export class Game extends Component {
         }
         this.loopRowsLeft--;
         return this.loopColor;
+    }
+
+    // các màu còn xe cần người (xe ở bãi + xe trong slot chưa đủ người)
+    needColors(): Set<number> {
+        return new Set(this.activeBuses().filter(b => b.remain > 0).map(b => b.color as number));
+    }
+
+    stopOn() {
+        return this.stopFinishedSpawn && !this.recolorFinished && this.spawnMode == SpawnMode.ColorLoop;
+    }
+
+    // màu xe còn cần lúc lần trước kiểm tra màu vừa hết xe (chỉ xử lý khi tập này đổi -> không tốn mỗi frame)
+    finishedKey: string = '';
+    finishedPrev = new Set<number>();
+
+    // stopFinishedSpawn: màu nào vừa hết xe mà cụm của nó đang ra dở ở đầu vào (cụm vắt qua chỗ cuối đường ->
+    // đầu vào) thì các row chưa ra của cụm đó được phép hiện lại nốt 1 lần (ra hết lượt). Các row khác của màu
+    // đó chạy tới cuối đường sẽ bị bỏ (xem updateRing), ô trống được lấp màu còn cần.
+    markFinishedTurns() {
+        if(!this.stopOn() || !this.ringSlots.length) return;
+        let need = this.needColors();
+        let key = [...need].sort((a, b) => a - b).join(',');
+        if(key == this.finishedKey) return;
+        let prev = this.finishedPrev;
+        this.finishedKey = key;
+        this.finishedPrev = need;
+        if(!need.size || !prev.size) return;
+        let dead = [...prev].filter(c => !need.has(c));
+        if(!dead.length) return;
+        let n = this.ringSlots.length;
+        // ô vừa qua đầu vào (quãng đường nhỏ nhất) và ô sắp tới cuối đường (ngay trước nó)
+        let j0 = 0, dmin = Infinity;
+        for(let i = 0; i < n; i++) { let d = this.ringSlotDis(i); if(d < dmin) { dmin = d; j0 = i; } }
+        let jEnd = (j0 - 1 + n) % n;
+        let cols = this.ringSlotColors;
+        dead.forEach(c => {
+            // cụm màu c đang ra dở = có cả ô vừa ra (j0) lẫn ô sắp tới lượt (jEnd)
+            if(cols[j0] != c || cols[jEnd] != c) return;
+            for(let k = 0, j = jEnd; k < n && cols[j] == c; k++, j = (j - 1 + n) % n) {
+                let row = this.ringSlots[j];
+                if(row && row.color == c) row.finishTurn = true;
+            }
+        });
+    }
+
+    // stopFinishedSpawn: ô i thuộc cụm màu `old` đã hết xe -> chia cả cụm (theo màu ô) cho 2 cụm liền kề:
+    // nửa gần đầu vào theo cụm sinh sau, nửa còn lại theo cụm sinh trước -> thứ tự vòng màu giữ nguyên, chỉ bỏ
+    // màu đã hết. Row màu cũ còn đang chạy giữ màu tới cuối đường thì bị bỏ, ô được lấp đúng màu mới của ô.
+    mergeDeadRun(i: number, old: number, need: Set<number>): number {
+        if(!need.size) return undefined;
+        let n = this.ringSlots.length, cols = this.ringSlotColors;
+        let s = i, e = i;
+        for(let k = 0; k < n && cols[(s - 1 + n) % n] == old; k++) s = (s - 1 + n) % n;
+        for(let k = 0; k < n && cols[(e + 1) % n] == old; k++) e = (e + 1) % n;
+        let len = Math.min(n, ((e - s + n) % n) + 1);
+        // ô số nhỏ hơn = gần đầu vào hơn = sinh sau
+        let after = cols[(s - 1 + n) % n], before = cols[(e + 1) % n];
+        let okA = len < n && after >= 0 && need.has(after);
+        let okB = len < n && before >= 0 && need.has(before);
+        if(!okA && !okB) {
+            // 2 bên đều không dùng được -> màu còn cần kế tiếp sau cụm sinh trước (vẫn đúng thứ tự vòng màu)
+            let list = [...need].sort((a, b) => a - b);
+            let ref = before >= 0 ? before : old;
+            let c = list.find(v => v > ref) ?? list[0];
+            for(let t = 0; t < len; t++) cols[(s + t) % n] = c;
+        } else {
+            let head = okA && okB ? Math.floor(len / 2) : okA ? len : 0;
+            for(let t = 0; t < len; t++) cols[(s + t) % n] = t < head ? after : before;
+        }
+        return cols[i];
     }
 
     // màu của row lấp chỗ trống theo fillMode (người dư, không tính vào sức chứa xe)
@@ -1426,7 +1501,8 @@ export class Game extends Component {
         if(this.spawnMode != SpawnMode.ColorLoop) return this.nextRowColor();
         let need = new Set(this.activeBuses().filter(b => b.remain > 0).map(b => b.color as number));
         let old = this.ringSlotColors[i];
-        if(old >= 0 && (need.has(old) || !this.recolorFinished)) return old;
+        if(old >= 0 && (need.has(old) || !(this.recolorFinished || this.stopOn()))) return old;
+        if(old >= 0 && this.stopOn()) return this.mergeDeadRun(i, old, need);
         let c = this.nextLoopColor();
         if(c === undefined) return undefined;
         this.ringSlotColors[i] = c;
@@ -1466,6 +1542,7 @@ export class Game extends Component {
         this.ringProgress = (this.ringProgress + dt * this.ringSpeed) % this.ringLoop;
         const k = this.ringScale;
         if(dt > 0 && !this.lose && this.recolorFinished) this.recolorDeadClusters();
+        if(dt > 0 && !this.lose && this.stopOn()) this.markFinishedTurns();
         this.ringSlots.forEach((row, i) => {
             let d = this.ringSlotDis(i);
             if(!row) {
@@ -1483,6 +1560,14 @@ export class Game extends Component {
             }
             if(row.lastDis >= 0 && d < row.lastDis - total * 0.5) {
                 row.wrapped = true;
+                // stopFinishedSpawn: màu đã hết xe -> chỉ row đang ra nốt lượt được hiện lại (1 lần), còn lại bỏ
+                if(dt > 0 && this.stopOn() && !this.activeBuses().some(b => b.remain > 0 && b.color == row.color)) {
+                    if(!row.finishTurn) {
+                        this.removeRingRow(i);
+                        return;
+                    }
+                    row.finishTurn = false;
+                }
                 if(dt > 0 && row.humans.length < n) this.topUpRingRow(row);
                 // màu không còn xe nào cần -> bỏ row ở cuối đường thay vì quay vòng chiếm chỗ mãi (ô trống sẽ được lấp màu mới)
                 if(dt > 0 && this.recolorFinished && this.spawnMode == SpawnMode.ColorLoop
