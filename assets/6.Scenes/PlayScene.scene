@@ -1249,7 +1249,7 @@
       3
     ],
     "buildVideo": false,
-    "buildName": "Ply_BusCrowded_PLY42_Ring3D",
+    "buildName": "Ply_BusCrowded_PLY42_Ring3D_LimitColor",
     "_id": "79SSQpbztPqr8euL00kwKv"
   },
   {
@@ -8509,7 +8509,7 @@
   },
   {
     "__type__": "cc.PrefabInstance",
-    "fileId": "0aG9gAWDVFE6wlBtwuZfSH",
+    "fileId": "78YaZL6K1Kv4eTasWwDU3Q",
     "prefabRootNode": null,
     "mountedChildren": [],
     "mountedComponents": [],
@@ -24699,8 +24699,7 @@
     "loopRowsMin": 6,
     "loopRowsMax": 10,
     "recolorFinished": false,
-    "reduceAbsent": false,
-    "absentRows": 2,
+    "stopFinishedSpawn": true,
     "fillMode": 2,
     "human2D": true,
     "tool": false,

@@ -1364,13 +1364,13 @@ export class Game extends Component {
     markFinishedTurns() {
         if(!this.stopOn() || !this.ringSlots.length) return;
         let need = this.needColors();
-        let key = [...need].sort((a, b) => a - b).join(',');
+        let key = Array.from(need).sort((a, b) => a - b).join(',');
         if(key == this.finishedKey) return;
         let prev = this.finishedPrev;
         this.finishedKey = key;
         this.finishedPrev = need;
         if(!need.size || !prev.size) return;
-        let dead = [...prev].filter(c => !need.has(c));
+        let dead = Array.from(prev).filter(c => !need.has(c));
         if(!dead.length) return;
         let n = this.ringSlots.length;
         // ô vừa qua đầu vào (quãng đường nhỏ nhất) và ô sắp tới cuối đường (ngay trước nó)
@@ -1388,9 +1388,10 @@ export class Game extends Component {
         });
     }
 
-    // stopFinishedSpawn: ô i thuộc cụm màu `old` đã hết xe -> chia cả cụm (theo màu ô) cho 2 cụm liền kề:
-    // nửa gần đầu vào theo cụm sinh sau, nửa còn lại theo cụm sinh trước -> thứ tự vòng màu giữ nguyên, chỉ bỏ
-    // màu đã hết. Row màu cũ còn đang chạy giữ màu tới cuối đường thì bị bỏ, ô được lấp đúng màu mới của ô.
+    // stopFinishedSpawn: ô i thuộc cụm màu `old` đã hết xe -> tô lại cả cụm (theo màu ô) thành các cụm mới
+    // loopRowsMin..Max row theo vòng màu (chỉ các màu còn cần). Ưu tiên độ dài cụm (kể cả khi còn ít màu, không để
+    // cụm phình to vì gộp liên tục), sau đó mới tới đúng thứ tự vòng màu. Cụm quá ngắn thì gộp vào cụm bên cạnh
+    // nếu không vượt max. Row màu cũ còn đang chạy giữ màu tới cuối đường thì bị bỏ, ô được lấp đúng màu mới của ô.
     mergeDeadRun(i: number, old: number, need: Set<number>): number {
         if(!need.size) return undefined;
         let n = this.ringSlots.length, cols = this.ringSlotColors;
@@ -1402,16 +1403,93 @@ export class Game extends Component {
         let after = cols[(s - 1 + n) % n], before = cols[(e + 1) % n];
         let okA = len < n && after >= 0 && need.has(after);
         let okB = len < n && before >= 0 && need.has(before);
-        if(!okA && !okB) {
-            // 2 bên đều không dùng được -> màu còn cần kế tiếp sau cụm sinh trước (vẫn đúng thứ tự vòng màu)
-            let list = [...need].sort((a, b) => a - b);
-            let ref = before >= 0 ? before : old;
-            let c = list.find(v => v > ref) ?? list[0];
-            for(let t = 0; t < len; t++) cols[(s + t) % n] = c;
-        } else {
-            let head = okA && okB ? Math.floor(len / 2) : okA ? len : 0;
-            for(let t = 0; t < len; t++) cols[(s + t) % n] = t < head ? after : before;
+        let lo = Math.max(1, Math.round(this.loopRowsMin));
+        let hi = Math.max(lo, Math.round(this.loopRowsMax));
+        let list = Array.from(need).sort((a, b) => a - b);
+        let m = list.length;
+        let next = (c: number) => list.find(v => v > c) ?? list[0];
+        let fill = (j: number, c: number) => { cols[j] = c; };
+        if(m == 1) {
+            for(let t = 0; t < len; t++) fill((s + t) % n, list[0]);
+            return cols[i];
         }
+        // độ dài cụm liền kề (theo màu ô) để biết gộp vào có vượt loopRowsMax không
+        let runLen = (start: number, step: number, c: number) => {
+            let l = 0;
+            for(let j = start; l < n && cols[j] == c; j = (j + step + n) % n) l++;
+            return l;
+        };
+        let la = okA ? runLen((s - 1 + n) % n, -1, after) : 0;
+        let lb = okB ? runLen((e + 1) % n, 1, before) : 0;
+        // màu các cụm mới đi theo vòng màu: c1 = màu thứ o sau cụm sinh trước (o = 1 là nối liền), c2 = next(c1)...
+        let ref = before >= 0 ? before : old;
+        let cyc = (o: number) => { let c = ref; for(let t = 0; t < o; t++) c = next(c); return c; };
+        // chọn số cụm K và màu bắt đầu: ưu tiên độ dài cụm trong loopRowsMin..Max (kể cả cụm bên cạnh bị dính
+        // cùng màu), sau đó mới tới đúng thứ tự vòng màu
+        // gộp vào 2 cụm bên cạnh: số row cho cụm sinh sau (phía ô s) sao cho 2 cụm ít vượt loopRowsMax nhất,
+        // ngang nhau thì chia gần đôi
+        let splitHead = () => {
+            if(!okA) return 0;
+            if(!okB) return len;
+            let bh = Math.ceil(len / 2), bc = Infinity;
+            for(let h = 0; h <= len; h++) {
+                let c = Math.max(0, la + h - hi) + Math.max(0, lb + len - h - hi) + Math.abs(h - len / 2) * 0.001;
+                if(c < bc) { bc = c; bh = h; }
+            }
+            return bh;
+        };
+        // row thiếu so với loopRowsMin phạt nặng (WS), row vượt loopRowsMax phạt nhẹ hơn (WL); cả 2 đều nặng hơn 1 chỗ
+        // nhảy màu (BREAK) -> độ dài cụm luôn được ưu tiên hơn thứ tự màu, và thà dài hơn max chút còn hơn ngắn hơn min
+        const BREAK = 2, WS = 12, WL = 3;
+        let mid = (lo + hi) / 2;
+        let best = -1, bestO = 1, bestCost = Infinity;
+        for(let K = 0; K <= len; K++) {
+            if(K == 0) {
+                if(!okA && !okB) continue;
+                let ha = splitHead();
+                // 2 bên cùng màu thì gộp vào sẽ dính thành 1 cụm dài la + len + lb
+                let cost = okA && okB && after == before
+                    ? WL * Math.max(0, la + len + lb - hi)
+                    : WL * (Math.max(0, la + ha - hi) + Math.max(0, lb + (len - ha) - hi));
+                if(okA && okB && next(before) != after) cost += BREAK;
+                if(cost < bestCost) { bestCost = cost; best = 0; }
+                continue;
+            }
+            let base = Math.floor(len / K), rem = len - base * K;
+            let first = base + (rem > 0 ? 1 : 0), last = base + (K <= rem ? 1 : 0);
+            let lenCost = 0;
+            for(let k = 0; k < K; k++) { let l = base + (k < rem ? 1 : 0); lenCost += WS * Math.max(0, lo - l) + WL * Math.max(0, l - hi); }
+            for(let o = 1; o <= m; o++) {
+                let c1 = cyc(o), cK = cyc(o + K - 1);
+                let cost = lenCost;
+                if(okB && c1 == before) cost += WL * Math.max(0, lb + first - hi) + BREAK;
+                if(okA && cK == after) cost += WL * Math.max(0, la + last - hi) + BREAK;
+                if(o != 1) cost += BREAK;
+                if(okA && next(cK) != after) cost += BREAK;
+                cost += Math.abs(len / K - mid) * 0.001;
+                if(cost < bestCost) { bestCost = cost; best = K; bestO = o; }
+            }
+        }
+        if(best <= 0) {
+            // gộp vào cụm bên cạnh: phần gần đầu vào theo cụm sinh sau, phần còn lại theo cụm sinh trước
+            let ha = splitHead();
+            for(let t = 0; t < len; t++) fill((s + t) % n, t < ha ? after : before);
+            return cols[i];
+        }
+        let seq: number[] = [];
+        for(let k = 0; k < best; k++) seq.push(cyc(bestO + k));
+        let K = best;
+        let base = Math.floor(len / K);
+        let lens = Array(K).fill(base);
+        for(let k = 0; k < len - base * K; k++) lens[k]++;
+        let lb2 = Math.min(lo, base), hb2 = Math.max(hi, base + 1);
+        for(let t = 0; t < K * 4; t++) {
+            let x = (Math.random() * K) | 0, y = (Math.random() * K) | 0;
+            if(x != y && lens[x] > lb2 && lens[y] < hb2) { lens[x]--; lens[y]++; }
+        }
+        // cụm đầu tiên nằm sát cụm sinh trước (phía ô e), đi dần về phía ô s
+        let pos = 0;
+        lens.forEach((l, k) => { for(let j = 0; j < l; j++, pos++) fill((e - pos + n) % n, seq[k]); });
         return cols[i];
     }
 
@@ -1433,7 +1511,7 @@ export class Game extends Component {
     recolorDeadClusters() {
         if(this.spawnMode != SpawnMode.ColorLoop || !this.ringSlots.length) return;
         let need = new Set(this.activeBuses().filter(b => b.remain > 0).map(b => b.color as number));
-        let key = [...need].sort((a, b) => a - b).join(',');
+        let key = Array.from(need).sort((a, b) => a - b).join(',');
         if(key == this.ringNeedKey) return;
         this.ringNeedKey = key;
         if(!need.size) return;

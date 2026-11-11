@@ -172,7 +172,7 @@ export class BuildManager extends Component {
             console.error("BuildManager: chưa có Build Name");
             return;
         }
-        const floors = this.buildFloors.length ? [...new Set(this.buildFloors)] : [this.mapManager.floor];
+        const floors = this.buildFloors.length ? Array.from(new Set(this.buildFloors)) : [this.mapManager.floor];
 
         const oldFloor = this.mapManager.floor;
         const oldVideo = this._videoMode;
