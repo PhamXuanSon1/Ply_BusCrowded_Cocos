@@ -1170,16 +1170,55 @@ export class Game extends Component {
         this.finishedKey = '';
 
         this.resetSpawnSequence();
+        // ColorLoop: định sẵn màu cả vòng để chỗ nối vòng vẫn đúng thứ tự màu (không có cụm nhảy cóc)
+        let planned = this.planLoopColors(count);
         // đổ sẵn từ ô gần cuối đường trở về đầu -> những màu chọn trước nằm gần lối ra hơn
         let fill = Math.round(count * Math.max(0, Math.min(1, this.ringPrefill)));
         for(let i = count - 1; i >= 0 && fill > 0; i--, fill--) {
-            let row = this.spawnRingRow(i);
+            let row = this.spawnRingRow(i, planned ? this.ringSlotColors[i] : undefined);
             if(!row) break;
             this.ringSlotColors[i] = row.color;
         }
         // đổ sẵn đi từ ô cuối về ô 0 -> cụm dở dang nằm ở ô 0
         this.fixShortRuns(0);
         this.updateRing(0);
+    }
+
+    // ColorLoop: chia `count` ô thành đúng m vòng màu trọn vẹn (m * số màu cụm, mỗi cụm loopRowsMin..Max row,
+    // độ dài ngẫu nhiên nhưng tổng vừa khít) rồi tô sẵn ringSlotColors -> đi hết vòng ring thứ tự màu vẫn liền
+    // mạch, kể cả chỗ nối ô cuối -> ô 0. Ô trống lấp sau (prefill < 1) lấy đúng màu đã định của ô.
+    // Không chia khít được (ít ô / khoảng Min..Max hẹp) thì trả false, giữ cách sinh cũ.
+    planLoopColors(count: number): boolean {
+        if(this.spawnMode != SpawnMode.ColorLoop || count <= 0) return false;
+        let colors = this.levelColors().sort((a, b) => a - b);
+        let C = colors.length;
+        if(!C) return false;
+        let lo = Math.max(1, Math.round(this.loopRowsMin));
+        let hi = Math.max(lo, Math.round(this.loopRowsMax));
+        let best = 0;
+        for(let m = 1; m * C <= count; m++) {
+            let K = m * C;
+            if(K * lo > count || K * hi < count) continue;
+            if(!best || Math.abs(count / K - (lo + hi) / 2) < Math.abs(count / (best * C) - (lo + hi) / 2)) best = m;
+        }
+        if(!best) return false;
+        let K = best * C;
+        let lens = Array(K).fill(Math.floor(count / K));
+        let extra = count - lens[0] * K;
+        for(let k = 0; k < extra; k++) lens[k]++;
+        // xáo độ dài: chuyển từng row giữa 2 cụm ngẫu nhiên, luôn trong lo..hi -> tổng không đổi
+        for(let t = 0; t < K * 4; t++) {
+            let a = (Math.random() * K) | 0, b = (Math.random() * K) | 0;
+            if(a != b && lens[a] > lo && lens[b] < hi) { lens[a]--; lens[b]++; }
+        }
+        // giống thứ tự đổ sẵn cũ: từ ô cuối (gần lối ra) về ô 0, màu tăng dần, hết vòng quay lại màu nhỏ nhất
+        let i = count - 1;
+        lens.forEach((len, k) => {
+            for(let j = 0; j < len; j++, i--) this.ringSlotColors[i] = colors[k % C];
+        });
+        this.loopColor = colors[(K - 1) % C];
+        this.loopRowsLeft = 0;
+        return true;
     }
 
     // sinh 1 row mới ở ô i của ring, màu color (mặc định lấy màu kế tiếp trong chuỗi)
