@@ -197,7 +197,9 @@ export class Game extends Component {
 
     outsideHumans: Human[] = [];
 
-    busSpeed: number = 1;
+    // hệ số THỜI GIAN di chuyển xe (Ulis.moveTo: time = quãng đường / 10 * busSpeed) — nhỏ hơn = nhanh hơn.
+    // 1 / 1.5 = xe chạy nhanh gấp 1.5 lần so với ban đầu (1).
+    busSpeed: number = 1 / 1.5;
     humanSpeed: number = 2;
 
     sumBus: number[] = [];
