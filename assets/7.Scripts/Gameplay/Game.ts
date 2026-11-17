@@ -364,7 +364,10 @@ export class Game extends Component {
         if(!bus) return;
         // Black để tắt sẵn trong scene (không phủ tối Scene editor), lúc chạy mới bật lên cho intro
         const black = this.getIntroBlack();
-        if(black && this.introDuration > 0) black.active = true;
+        if(black && this.introDuration > 0) {
+            black.active = true;
+            this.dimIntroUI(true);
+        }
         this.introBus = bus;
         // Đợi 1 frame cho worldBounds của mesh cập nhật rồi mới đo vị trí/kích thước xe
         this.scheduleOnce(() => this.createIntroSpot(), 0);
@@ -383,7 +386,23 @@ export class Game extends Component {
     spotGlow: number = 0.5;
     @property({ group: G_INTRO, range: [0, 1, 0.05], slide: true, tooltip: "Độ sáng của quầng trắng ngoài viền (0 = tắt, 1 = trắng đặc)." })
     spotGlowAlpha: number = 0.6;
+    @property({ group: G_INTRO, type: [Node], tooltip: "Node UI (canvas UICam, luôn vẽ đè lên màn tối) cần trông như nằm DƯỚI màn tối trong lúc intro, vd banner.\nTrong intro bị mờ xuống đúng độ tối của Black, intro tắt thì sáng lại." })
+    introDimNodes: Node[] = [];
     introSpot: Node = null;
+
+    // làm mờ / trả lại các node introDimNodes. dim = true: mờ ngay theo độ tối của Black; false: sáng lại trong time giây
+    dimIntroUI(dim: boolean, time = 0) {
+        const black = this.getIntroBlack();
+        const a = black?.getComponent(Sprite)?.color.a ?? 213;
+        const target = dim ? Math.round(255 - a) : 255;
+        this.introDimNodes.forEach(n => {
+            if(!n?.isValid) return;
+            const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
+            Tween.stopAllByTarget(op);
+            if(time > 0) tween(op).to(time, { opacity: target }).start();
+            else op.opacity = target;
+        });
+    }
 
     getIntroBlack(): Node {
         return ui?.wCamera?.node.parent?.getChildByPath("Scenes/UI/Black");
@@ -496,6 +515,7 @@ export class Game extends Component {
         const black = this.getIntroBlack();
         if(!black || !black.active) { this.endIntro(); return; }
         const op = black.getComponent(UIOpacity) ?? black.addComponent(UIOpacity);
+        this.dimIntroUI(false, 0.3);
         tween(op).to(0.3, { opacity: 0 }).call(() => {
             black.active = false;
             op.opacity = 255;
@@ -529,6 +549,8 @@ export class Game extends Component {
     endIntro() {
         if(!this.introBus) return;
         this.introBus = null;
+        // kết thúc sớm (chạm lần đầu) cũng trả lại độ sáng cho node UI đã làm mờ
+        this.dimIntroUI(false, 0.3);
         const root = this.introSpot;
         this.introSpot = null;
         if(root?.isValid) {
