@@ -95,8 +95,9 @@ export class Bus extends PoolMember {
 
         this.box = this.node.children[0].getChildByName("Render").getChildByName("Box");
         this.open = this.node.children[0].getChildByName("Render").getChildByName("Open");
+        // xe không có Label (vd FireCar port từ Bus Jam) thì bỏ qua phần hiện số người còn thiếu
         this.label = this.box.getComponentInChildren(Label);
-        this.label.node.active = false;
+        if(this.label) this.label.node.active = false;
         this.seats = this.node.children[0].getChildByName("Seats").getComponentsInChildren(MeshRenderer).map((seat) => seat.node);
         this.seatPoses = this.seats.map((seat) => {
             let wpos = seat.getWorldPosition();
@@ -107,8 +108,11 @@ export class Bus extends PoolMember {
         this.p0 = this.seatPoses[this.seatPoses.length - 1].clone();
         this.p0.x = this.dis;
         this.totalSeats = this.seats.length * gm.humanPerRow;
+        // xe có nhóm khách đứng riêng (HumanGroup, vd FireCar) có sức chứa riêng
+        let cap = gm.group?.capacityOf(this);
+        if(cap) this.totalSeats = cap;
         this.remain = this.totalSeats;
-        this.label.string = this.remain + "";
+        if(this.label) this.label.string = this.remain + "";
         this.setColor(this.color);
         // this.getRect();
     }
@@ -179,9 +183,9 @@ export class Bus extends PoolMember {
         human.bus = this;
         let r = this.totalSeats - this.humans.length;
         if(r < 0) r = 0;
-        this.label.string = r + "";
+        if(this.label) this.label.string = r + "";
         if(r == 0) {
-            this.label.node.active = false; 
+            if(this.label) this.label.node.active = false;
             this.spawnScore();
         }
     }
@@ -239,7 +243,7 @@ export class Bus extends PoolMember {
 
     onSlot() {
         this.box.getChildByName("Arrow").active = false;
-        this.label.node.active = true;
+        if(this.label) this.label.node.active = true;
         this.moving = false;
     }
 
@@ -249,6 +253,11 @@ export class Bus extends PoolMember {
             let movingHuman = this.humans.find(h => h.moving || h.sitting);
             if(!movingHuman && !this.checked) {
                 this.checked = true;
+                // xe có nhóm khách riêng (HumanGroup, vd xe trượt ông già Noel): đổi sang bản có người ngồi (node Open)
+                if(gm.isGroupBus(this) && this.open) {
+                    this.box.active = false;
+                    this.open.active = true;
+                }
                 sm.playSoundDup(SoundType.Ting);
                 gm.moveBusOut(this);
             }
