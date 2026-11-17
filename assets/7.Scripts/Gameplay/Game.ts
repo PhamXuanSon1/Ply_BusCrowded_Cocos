@@ -678,9 +678,16 @@ export class Game extends Component {
     score: number = 0;
     @property({ group: G_STORE, tooltip: "Số IQ cộng thêm mỗi khi 1 xe đầy khách (cũng là số bay lên từ xe vào ô Brain)." })
     amount: number = 2;
+    @property({ group: G_STORE, tooltip: "Chữ đứng trước số điểm trong ô Brain (ô không có hình bộ não thì ghi rõ là IQ).\nVD 'IQ = ' -> hiện 'IQ = 8'. Để trống = chỉ hiện số." })
+    scorePrefix: string = "IQ = ";
     setScore() {
         this.score += this.amount;
-        this.brainText.string = this.score.toString();
+        this.showScore();
+    }
+
+    // hiện điểm trong ô Brain kèm tiền tố (scorePrefix)
+    showScore() {
+        if(this.brainText) this.brainText.string = this.scorePrefix + this.score;
     }
 
     initLayers() {
@@ -694,7 +701,7 @@ export class Game extends Component {
         this.sand = this.node.getChildByName("Sand");
         this.brain = this.node.getChildByName("Brain");
         this.brainText = this.brain.getComponentInChildren(Label);
-        // this.setScore();
+        this.showScore();
         this.linear = this.node.getChildByName("Linear");
         this.map = this.findMap();
         if(!this.map) console.warn("Game: không có map (GameMap) nào đang bật dưới Linear — chọn map ở MapManager");
