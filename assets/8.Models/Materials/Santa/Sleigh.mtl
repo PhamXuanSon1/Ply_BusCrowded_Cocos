@@ -113,7 +113,7 @@
     {},
     {},
     {
-      "lineWidth": 1,
+      "lineWidth": 10,
       "baseColor": {
         "__type__": "cc.Color",
         "r": 40,

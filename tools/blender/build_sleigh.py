@@ -1,5 +1,5 @@
 # Blender headless: xe trượt ông già Noel theo mẫu vẽ (thân cong kiểu thiên nga, đuôi cuộn cao, mũi cuộn,
-# càng trượt đen, bao quà phía sau, tuần lộc phía trước).
+# thân đỏ trơn, càng trượt đen, 2 hộp quà trên ghế, tuần lộc phía trước).
 # Chạy: "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python tools/blender/build_sleigh.py
 # Xuất: assets/8.Models/Meshs/Santa/Sleigh.glb gồm 2 mesh:
 #   - Sleigh       : xe trống (đang chờ ông già Noel)
@@ -139,7 +139,7 @@ mat.use_nodes = True
 tex = mat.node_tree.nodes.new("ShaderNodeTexImage"); tex.image = img; tex.interpolation = 'Closest'
 mat.node_tree.links.new(tex.outputs[0], mat.node_tree.nodes["Principled BSDF"].inputs[0])
 
-W = 0.19          # nửa bề ngang thân xe (mép ngoài tấm hông)
+W = 0.21          # nửa bề ngang thân xe (mép ngoài tấm hông) - rộng gần bằng xe buýt cho dễ nhìn
 T = 0.045         # độ dày tấm hông
 # profile tấm hông nhìn ngang (y = dọc xe, z = cao): đuôi cuộn cao phía sau, lõm ở chỗ ngồi, mũi cuộn phía trước
 PROFILE = [
@@ -158,22 +158,18 @@ def build_sleigh():
     for s in (-1, 1):
         x_out, x_in = s * W, s * (W - T)
         panel(PROFILE, min(x_out, x_in), max(x_out, x_in), 'RED')
-        # viền vàng chạy theo mép trên + mép dưới
-        xe = s * (W - T / 2)
-        tube([(xe, y, z) for (y, z) in TOP_EDGE], 0.014, 'GOLD')
-        tube([(xe, y, z) for (y, z) in TOP_EDGE2], 0.014, 'GOLD')
-        tube([(xe, -0.41, 0.095), (xe, 0.07, 0.095), (xe, 0.16, 0.13)], 0.012, 'GOLD')
+        # (đã bỏ viền chạy theo mép tấm hông: thân đỏ trơn cho dễ nhìn)
         # hoa văn xoắn vàng ở mặt ngoài tấm hông
         torus((s * (W + 0.003), -0.12, 0.155), 0.045, 0.009, 'GOLD', rot=(0, math.pi / 2, 0))
         torus((s * (W + 0.003), -0.42, 0.30), 0.05, 0.009, 'GOLD', rot=(0, math.pi / 2, 0))
         torus((s * (W + 0.003), 0.17, 0.25), 0.035, 0.009, 'GOLD', rot=(0, math.pi / 2, 0))
     # lòng xe: đáy + vách sau + vách trước (giữa 2 tấm hông)
     wi = W - T
-    box((0, -0.16, 0.13), (2 * wi, 0.52, 0.08), 'BROWN')   # lòng xe màu nâu: tách màu với thân đỏ mà không chói
+    box((0, -0.16, 0.13), (2 * wi, 0.52, 0.08), 'LBROWN')   # lòng xe màu nâu: tách màu với thân đỏ mà không chói
     box((0, -0.44, 0.31), (2 * wi, 0.07, 0.40), 'RED', bevel=0.015)
     box((0, 0.135, 0.22), (2 * wi, 0.05, 0.20), 'RED', bevel=0.012)
     # ghế: đệm vàng nhạt + tựa lưng đỏ đậm -> nhìn từ trên thấy rõ lòng xe khác màu thân
-    box((0, -0.24, 0.20), (2 * wi - 0.01, 0.30, 0.06), 'DBROWN', bevel=0.02)
+    box((0, -0.24, 0.20), (2 * wi - 0.01, 0.30, 0.06), 'BROWN', bevel=0.02)
     box((0, -0.385, 0.33), (2 * wi - 0.01, 0.05, 0.22), 'DARKRED', bevel=0.02)
     # càng trượt đen: thò ra ngoài thân, mũi cuộn tròn phía trước
     for s in (-1, 1):
@@ -183,13 +179,9 @@ def build_sleigh():
         tube([(x, -0.50, 0.03), (x, -0.55, 0.05), (x, -0.56, 0.08)], 0.016, 'BLACK')
         for y in (-0.36, -0.12, 0.08):
             cyl((x, y, 0.03), (s * (W - 0.01), y, 0.11), 0.011, 'BLACK', seg=8)
-    # bao quà nâu buộc dây vàng ở phía sau (khác màu thân để dễ nhận ra) + quà nhiều màu phía trước bao
-    sphere((0, -0.47, 0.50), (0.13, 0.10, 0.12), 'LBROWN', seg=18, rings=12)
-    sphere((0, -0.49, 0.60), (0.06, 0.05, 0.05), 'LBROWN', seg=12, rings=8)
-    torus((0, -0.485, 0.57), 0.055, 0.012, 'GOLD')
-    for (x, y, z, sz, c, rc) in ((-0.10, -0.40, 0.48, 0.09, 'GREEN', 'YELLOW'),
-                                 (0.10, -0.40, 0.49, 0.10, 'BLUE', 'YELLOW'),
-                                 (0.0, -0.41, 0.60, 0.08, 'GOLD', 'RED')):
+    # 2 hộp quà nhỏ đặt trên ghế ở 2 góc sau (không còn bao quà; chừa giữa ghế cho ông già Noel ngồi)
+    for (x, y, z, sz, c, rc) in ((-0.11, -0.36, 0.27, 0.075, 'GREEN', 'YELLOW'),
+                                 (0.11, -0.36, 0.27, 0.075, 'BLUE', 'YELLOW')):
         box((x, y, z), (sz, sz, sz), c, bevel=0.01)
         box((x, y, z), (sz + 0.006, 0.018, sz + 0.006), rc)
         box((x, y, z), (0.018, sz + 0.006, sz + 0.006), rc)
@@ -198,28 +190,28 @@ def build_sleigh():
 def build_deer():
     """tuần lộc đang phi về phía trước (theo mẫu): thân nâu, bụng + đốm kem, gạc xoè, mũi đỏ, vòng cổ vàng"""
     y0 = 0.40
-    sphere((0, y0, 0.25), (0.075, 0.13, 0.072), 'DBROWN', seg=18, rings=12)
+    sphere((0, y0, 0.25), (0.075, 0.13, 0.072), 'BROWN', seg=18, rings=12)
     sphere((0, y0, 0.22), (0.055, 0.10, 0.045), 'WHITE', seg=14, rings=8)      # bụng kem
     for (dx, dy) in ((-0.04, -0.06), (0.045, 0.02), (-0.03, 0.06), (0.035, -0.08)):
         sphere((dx * 1.6, y0 + dy, 0.30), (0.018, 0.022, 0.01), 'YELLOW', seg=8, rings=5)  # đốm trên lưng
     # chân: chân trước duỗi ra trước, chân sau đạp về sau (dáng phi)
     for s in (-1, 1):
         x = s * 0.04
-        cyl((x, y0 + 0.08, 0.22), (x, y0 + 0.17, 0.10), 0.017, 'DBROWN', seg=8)
-        cyl((x, y0 + 0.17, 0.10), (x, y0 + 0.22, 0.12), 0.014, 'DBROWN', seg=8)
+        cyl((x, y0 + 0.08, 0.22), (x, y0 + 0.17, 0.10), 0.017, 'BROWN', seg=8)
+        cyl((x, y0 + 0.17, 0.10), (x, y0 + 0.22, 0.12), 0.014, 'BROWN', seg=8)
         sphere((x, y0 + 0.225, 0.12), 0.018, 'BLACK', seg=8, rings=6)
-        cyl((x, y0 - 0.08, 0.22), (x, y0 - 0.14, 0.10), 0.019, 'DBROWN', seg=8)
-        cyl((x, y0 - 0.14, 0.10), (x, y0 - 0.20, 0.06), 0.015, 'DBROWN', seg=8)
+        cyl((x, y0 - 0.08, 0.22), (x, y0 - 0.14, 0.10), 0.019, 'BROWN', seg=8)
+        cyl((x, y0 - 0.14, 0.10), (x, y0 - 0.20, 0.06), 0.015, 'BROWN', seg=8)
         sphere((x, y0 - 0.205, 0.055), 0.018, 'BLACK', seg=8, rings=6)
     sphere((0, y0 - 0.13, 0.29), (0.025, 0.03, 0.03), 'WHITE', seg=8, rings=6)   # đuôi
     # cổ + đầu ngẩng cao
-    cyl((0, y0 + 0.09, 0.28), (0, y0 + 0.13, 0.40), 0.037, 'DBROWN', seg=12)
-    sphere((0, y0 + 0.15, 0.44), (0.05, 0.065, 0.05), 'DBROWN', seg=16, rings=10)
+    cyl((0, y0 + 0.09, 0.28), (0, y0 + 0.13, 0.40), 0.037, 'BROWN', seg=12)
+    sphere((0, y0 + 0.15, 0.44), (0.05, 0.065, 0.05), 'BROWN', seg=16, rings=10)
     sphere((0, y0 + 0.205, 0.43), (0.032, 0.035, 0.028), 'WHITE', seg=10, rings=6)  # mõm
     sphere((0, y0 + 0.24, 0.435), 0.022, 'NOSE', seg=10, rings=6)
     for s in (-1, 1):
         sphere((s * 0.028, y0 + 0.185, 0.47), 0.011, 'BLACK', seg=8, rings=5)
-        sphere((s * 0.05, y0 + 0.13, 0.47), (0.012, 0.025, 0.008), 'DBROWN', seg=8, rings=5)  # tai
+        sphere((s * 0.05, y0 + 0.13, 0.47), (0.012, 0.025, 0.008), 'BROWN', seg=8, rings=5)  # tai
         # gạc xoè rộng (nhìn từ trên vẫn thấy rõ)
         a = (s * 0.02, y0 + 0.14, 0.48)
         b = (s * 0.08, y0 + 0.12, 0.56)
