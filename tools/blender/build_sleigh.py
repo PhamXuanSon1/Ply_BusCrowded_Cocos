@@ -1,5 +1,5 @@
 # Blender headless: xe trượt ông già Noel theo mẫu vẽ (thân cong kiểu thiên nga, đuôi cuộn cao, mũi cuộn,
-# thân đỏ trơn, càng trượt đen, 2 hộp quà trên ghế, tuần lộc phía trước).
+# thân đỏ trơn, càng trượt đen, 7 hộp quà, tuần lộc phía trước).
 # Chạy: "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --factory-startup --python tools/blender/build_sleigh.py
 # Xuất: assets/8.Models/Meshs/Santa/Sleigh.glb gồm 2 mesh:
 #   - Sleigh       : xe trống (đang chờ ông già Noel)
@@ -179,9 +179,17 @@ def build_sleigh():
         tube([(x, -0.50, 0.03), (x, -0.55, 0.05), (x, -0.56, 0.08)], 0.016, 'BLACK')
         for y in (-0.36, -0.12, 0.08):
             cyl((x, y, 0.03), (s * (W - 0.01), y, 0.11), 0.011, 'BLACK', seg=8)
-    # 2 hộp quà nhỏ đặt trên ghế ở 2 góc sau (không còn bao quà; chừa giữa ghế cho ông già Noel ngồi)
+    # hộp quà (chừa giữa ghế cho ông già Noel ngồi):
+    # - 2 hộp trên ghế ở 2 góc sau
+    # - 3 hộp chồng trên đỉnh tựa lưng (chỗ bao quà cũ)
+    # - 2 hộp trên sàn ở mũi xe
     for (x, y, z, sz, c, rc) in ((-0.11, -0.36, 0.27, 0.075, 'GREEN', 'YELLOW'),
-                                 (0.11, -0.36, 0.27, 0.075, 'BLUE', 'YELLOW')):
+                                 (0.11, -0.36, 0.27, 0.075, 'BLUE', 'YELLOW'),
+                                 (-0.095, -0.46, 0.555, 0.09, 'GREEN', 'RED'),
+                                 (0.095, -0.46, 0.555, 0.09, 'WHITE', 'RED'),
+                                 (0.0, -0.46, 0.64, 0.08, 'BLUE', 'YELLOW'),
+                                 (-0.10, 0.06, 0.21, 0.08, 'YELLOW', 'RED'),
+                                 (0.10, 0.06, 0.21, 0.08, 'PINK', 'WHITE')):
         box((x, y, z), (sz, sz, sz), c, bevel=0.01)
         box((x, y, z), (sz + 0.006, 0.018, sz + 0.006), rc)
         box((x, y, z), (0.018, sz + 0.006, sz + 0.006), rc)

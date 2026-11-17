@@ -13,7 +13,7 @@
       "name": "Sleigh.mesh",
       "userData": {
         "gltfIndex": 0,
-        "triangleCount": 11348
+        "triangleCount": 13928
       },
       "ver": "1.1.1",
       "imported": true,
@@ -31,7 +31,7 @@
       "name": "SleighRider.mesh",
       "userData": {
         "gltfIndex": 1,
-        "triangleCount": 15820
+        "triangleCount": 18400
       },
       "ver": "1.1.1",
       "imported": true,
