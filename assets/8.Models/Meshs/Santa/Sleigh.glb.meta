@@ -1,0 +1,112 @@
+{
+  "ver": "2.3.14",
+  "importer": "gltf",
+  "imported": true,
+  "uuid": "d7de6923-6105-482a-b978-7e3a82ef1359",
+  "files": [],
+  "subMetas": {
+    "7e667": {
+      "importer": "gltf-mesh",
+      "uuid": "d7de6923-6105-482a-b978-7e3a82ef1359@7e667",
+      "displayName": "",
+      "id": "7e667",
+      "name": "Sleigh.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 15860
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "b79cd": {
+      "importer": "gltf-mesh",
+      "uuid": "d7de6923-6105-482a-b978-7e3a82ef1359@b79cd",
+      "displayName": "",
+      "id": "b79cd",
+      "name": "SleighRider.mesh",
+      "userData": {
+        "gltfIndex": 1,
+        "triangleCount": 20332
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "53fc5": {
+      "importer": "gltf-material",
+      "uuid": "d7de6923-6105-482a-b978-7e3a82ef1359@53fc5",
+      "displayName": "",
+      "id": "53fc5",
+      "name": "Sleigh.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "965cd": {
+      "importer": "gltf-scene",
+      "uuid": "d7de6923-6105-482a-b978-7e3a82ef1359@965cd",
+      "displayName": "",
+      "id": "965cd",
+      "name": "Sleigh.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "d7de6923-6105-482a-b978-7e3a82ef1359@7e667",
+        "d7de6923-6105-482a-b978-7e3a82ef1359@b79cd"
+      ],
+      "skeletons": [],
+      "textures": [],
+      "materials": [
+        "d7de6923-6105-482a-b978-7e3a82ef1359@53fc5"
+      ],
+      "scenes": [
+        "d7de6923-6105-482a-b978-7e3a82ef1359@965cd"
+      ]
+    }
+  }
+}

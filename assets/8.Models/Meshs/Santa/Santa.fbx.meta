@@ -1,0 +1,165 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15",
+  "files": [],
+  "subMetas": {
+    "69770": {
+      "importer": "gltf-material",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@69770",
+      "displayName": "",
+      "id": "69770",
+      "name": "Santa.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "92a95": {
+      "importer": "gltf-mesh",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@92a95",
+      "displayName": "",
+      "id": "92a95",
+      "name": "Santa.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 7936
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "438fe": {
+      "importer": "gltf-skeleton",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@438fe",
+      "displayName": "",
+      "id": "438fe",
+      "name": "UnnamedSkeleton.skeleton",
+      "userData": {
+        "gltfIndex": 0,
+        "jointsLength": 17
+      },
+      "ver": "1.0.1",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "48b02": {
+      "importer": "gltf-embeded-image",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@48b02",
+      "displayName": "",
+      "id": "48b02",
+      "name": "base_color_texture.image",
+      "userData": {
+        "gltfIndex": 0,
+        "fixAlphaTransparencyArtifacts": true,
+        "hasAlpha": true,
+        "type": "texture"
+      },
+      "ver": "1.0.3",
+      "imported": true,
+      "files": [
+        ".json",
+        ".png"
+      ],
+      "subMetas": {}
+    },
+    "7d6ab": {
+      "importer": "texture",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@7d6ab",
+      "displayName": "",
+      "id": "7d6ab",
+      "name": "base_color_texture.texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "5067f51c-fd60-4b8d-b3de-e64242a78d15@48b02"
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "0c639": {
+      "importer": "gltf-scene",
+      "uuid": "5067f51c-fd60-4b8d-b3de-e64242a78d15@0c639",
+      "displayName": "",
+      "id": "0c639",
+      "name": "Santa.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [
+      {
+        "name": "base_color_texture",
+        "uri": "5067f51c-fd60-4b8d-b3de-e64242a78d15@48b02"
+      }
+    ],
+    "fbx": {
+      "smartMaterialEnabled": true
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "5067f51c-fd60-4b8d-b3de-e64242a78d15@92a95"
+      ],
+      "skeletons": [
+        "5067f51c-fd60-4b8d-b3de-e64242a78d15@438fe"
+      ],
+      "textures": [
+        "5067f51c-fd60-4b8d-b3de-e64242a78d15@7d6ab"
+      ],
+      "materials": [
+        "5067f51c-fd60-4b8d-b3de-e64242a78d15@69770"
+      ],
+      "scenes": [
+        "5067f51c-fd60-4b8d-b3de-e64242a78d15@0c639"
+      ]
+    }
+  }
+}
