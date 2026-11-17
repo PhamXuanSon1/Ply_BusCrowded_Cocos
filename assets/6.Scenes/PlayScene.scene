@@ -21021,7 +21021,7 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "clicksToStore": 50,
+    "clicksToStore": 78,
     "useHand": true,
     "tutTime": 0,
     "noSlot": {
@@ -21119,10 +21119,10 @@
       "y": 1.15
     },
     "introDuration": 2.5,
-    "spotPadding": 0.2,
+    "spotPadding": 0,
     "spotCorner": 0.25,
     "spotLine": 0.08,
-    "spotGlow": 0.5,
+    "spotGlow": 0.2,
     "spotGlowAlpha": 0.6,
     "amount": 2,
     "_id": "a1LryYXABJvZIL5ujU1F9u"
@@ -21246,7 +21246,7 @@
       "__id__": 1067
     },
     "_children": [],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 1069
