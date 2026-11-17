@@ -1,6 +1,5 @@
 import { _decorator, Component, Enum, Label, RichText, sys, TTFFont, UITransform, v3, Vec3 } from 'cc';
 import { LOCALIZE_DATA } from './LocalizeData';
-import { EDITOR_NOT_IN_PREVIEW } from 'cc/env';
 
 const { ccclass, property, executeInEditMode } = _decorator;
 
@@ -11,11 +10,14 @@ const SOURCE_LANGUAGE = 'en';
 const LANGUAGES = ['en', 'es', 'pt', 'fr', 'de', 'it', 'ru', 'tr', 'ja', 'ko', 'zh-cn', 'zh-tw', 'th', 'id', 'ar', 'hi', 'vi'];
 const LanguageEnum = Enum(LANGUAGES.reduce((o, l, i) => { o[l] = i; return o; }, {} as Record<string, number>));
 
+/** Ngôn ngữ mà font gốc không có chữ → bật System Fonts (in đậm). Ngôn ngữ khác giữ nguyên font gốc. */
+const SYSTEM_FONT_LANGS = ['ru', 'ja', 'ko', 'zh-cn', 'zh-tw', 'th', 'ar', 'hi'];
+
 /**
  * Gắn component này lên node có sẵn Label hoặc RichText - tự đọc text trên Label,
  * detect ngôn ngữ máy user rồi thay bằng bản dịch tương ứng trong LocalizeData.
- * Bản dịch có thể chứa tag RichText (VD <color=#ff1fa0>Pink</color>): node dùng RichText sẽ
- * hiện màu, node dùng Label thường thì tag bị bỏ đi.
+ * Bản dịch có thể chứa tag RichText (VD <color=#ff1fa0>Pink</color>): node chỉ có Label sẽ
+ * tự đổi sang RichText (cả trong Editor) để hiện màu.
  */
 @ccclass('AutoLocalize')
 @executeInEditMode(true)
@@ -62,6 +64,12 @@ export class AutoLocalize extends Component {
     @property
     originSize: Vec3 = null;
 
+    @property({
+        type: TTFFont,
+        tooltip: 'Font gốc của node — tự lưu lần đầu. Ngôn ngữ dùng System Fonts (ru, ja, ko, zh, th, ar, hi) xong sẽ trả lại font này.'
+    })
+    originFont: TTFFont = null;
+
 
     init() {
 
@@ -82,11 +90,33 @@ export class AutoLocalize extends Component {
         if ( this.debug && this.debugLanguage.length > 0) {
             language = norm(this.debugLanguage);
         }
-        const translated = entry && (entry[language] || entry[baseOf(language)] || entry[SOURCE_LANGUAGE]);
+        const usedLang = !entry ? SOURCE_LANGUAGE
+            : entry[language] ? language
+            : entry[baseOf(language)] ? baseOf(language)
+            : SOURCE_LANGUAGE;
+        const translated = entry && entry[usedLang];
 
-        // Bản dịch có tag màu mà node chỉ có Label → lúc chạy game tự đổi sang RichText (chép
-        // font/cỡ/màu/căn lề từ Label) để khỏi phải thay component tay trong scene.
-        if (!rich && !EDITOR_NOT_IN_PREVIEW && translated && stripTags(translated) != translated) {
+        // Lưu font gốc (chỉ khi node đang dùng font file), rồi luôn trả font gốc về trước khi dịch.
+        const comp = label || rich;
+        if (!this.originFont && !comp.useSystemFont && comp.font) {
+            this.originFont = comp.font as TTFFont;
+        }
+        const useSystem = !!translated && SYSTEM_FONT_LANGS.indexOf(usedLang) >= 0;
+        const setSystemFont = (system: boolean) => {
+            for (const c of [label, rich]) {
+                if (!c) continue;
+                c.useSystemFont = system;
+                if (!system && this.originFont) c.font = this.originFont;
+            }
+            if (label) label.isBold = system;
+        };
+        if (this.originFont) {
+            setSystemFont(false);
+        }
+
+        // Bản dịch có tag màu mà node chỉ có Label → tự đổi sang RichText (chép
+        // font/cỡ/màu/căn lề từ Label). Chạy cả trong Editor nên thấy màu ngay; RichText được lưu vào scene.
+        if (!rich && translated && stripTags(translated) != translated) {
             rich = this.addComponent(RichText);
             rich.font = label.font as TTFFont;
             rich.useSystemFont = label.useSystemFont;
@@ -100,9 +130,10 @@ export class AutoLocalize extends Component {
             label.enabled = false;
         }
 
+        let richBold = false;
         const setText = (str: string) => {
             if (rich) {
-                rich.string = escapeRichText(str);
+                rich.string = richBold ? `<b>${escapeRichText(str)}</b>` : escapeRichText(str);
             } else {
                 label.string = stripTags(str);
                 label.updateRenderData(true);
@@ -114,6 +145,10 @@ export class AutoLocalize extends Component {
         const size = uit.contentSize.clone();
 
         if (translated) {
+            if (useSystem) {
+                setSystemFont(true);
+                richBold = true;
+            }
             setText(translated);
         }
         var nSize = uit.contentSize.clone();
