@@ -362,6 +362,9 @@ export class Game extends Component {
     // trong suốt, viền trắng phát sáng) + 4 mảng tối phủ phần còn lại. Tự tắt sau introDuration giây.
     startIntro(bus: Node) {
         if(!bus) return;
+        // Black để tắt sẵn trong scene (không phủ tối Scene editor), lúc chạy mới bật lên cho intro
+        const black = this.getIntroBlack();
+        if(black && this.introDuration > 0) black.active = true;
         this.introBus = bus;
         // Đợi 1 frame cho worldBounds của mesh cập nhật rồi mới đo vị trí/kích thước xe
         this.scheduleOnce(() => this.createIntroSpot(), 0);
