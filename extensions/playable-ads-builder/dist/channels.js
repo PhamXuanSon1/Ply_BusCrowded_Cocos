@@ -156,6 +156,8 @@ function getChannelSpecificScript(channel) {
         case CHANNEL.TikTok:
         case CHANNEL.OceanEngine:
         case CHANNEL.Pangle:
+            // Da kiem chung bang 1 file mau tung upload thanh cong: SDK van dung link ngoai
+            // binh thuong (khong can nhung inline), dat trong <head> nhu cu.
             return {
                 scriptContent: '<script type="text/javascript" src="https://sf16-muse-va.ibytedtos.com/obj/union-fe-nc-i18n/playable/sdk/playable-sdk.js"></script>',
                 replaceTarget: '</head>',

@@ -42,6 +42,7 @@ const html_minifier_1 = require("html-minifier");
 const channels_1 = require("./channels");
 const packager_1 = require("./packager");
 const build_engine_1 = require("./build-engine");
+const textureExclusions_1 = require("./textureExclusions");
 function getExtensionVersion() {
     try {
         return require(path.join(__dirname, '..', 'package.json')).version || '1.0.0';
@@ -79,23 +80,29 @@ function patchBaseHtml(src, cocosVersion, extVersion) {
         : `<script>${src.jszipContent}</script>`)
         .replace(`System.import('./index.js').catch(function(err) { console.error(err); })`, () => launcherInit);
 }
+/**
+ * Kenh KHONG duoc chen "<base href="https://localhost/">" gia - xac nhan bang 1 file mau TikTok
+ * (kenh "woodout") da tung up thanh cong that su: file do hoan toan khong co base href. Facebook/
+ * Google/Mintegral da biet ro tu truoc (validator quet tinh URL "ben ngoai"); TikTok/OceanEngine/
+ * Pangle them vao day cung vi ly do tuong tu - rat co the day moi la nguyen nhan that cua loi
+ * "Khong tim thay SDK TikTok JS" (KHONG phai do SDK dung link ngoai - file mau van dung link ngoai
+ * binh thuong va van upload duoc, nen khong can nhung inline SDK nhu truoc).
+ */
+const NO_BASE_HREF_CHANNELS = [channels_1.CHANNEL.Facebook, channels_1.CHANNEL.Google, channels_1.CHANNEL.Mintegral, channels_1.CHANNEL.TikTok, channels_1.CHANNEL.OceanEngine, channels_1.CHANNEL.Pangle];
+/** Rieng nhom nay dong goi zip.js thanh FILE RIENG trong zip thay vi nhung inline (xem packager.ts writeChannelSpecificFiles). */
+const EXTERNAL_ZIP_JS_CHANNELS = [channels_1.CHANNEL.Facebook, channels_1.CHANNEL.Google, channels_1.CHANNEL.Mintegral];
 async function buildChannelHtml(baseHtml, channel, product, zipJsContent) {
     let html = baseHtml;
     const apiText = (0, channels_1.getChannelApiText)(channel, product);
     if (apiText) {
         html = html.replace('</head>', () => `${apiText}</head>`);
     }
-    // Facebook/Google/Mintegral: dong goi zip.js thanh 1 FILE RIENG trong zip (khong nhung inline,
-    // khong chen "<base href>" gia) - giong het cach Facebook da lam tu truoc (packager.ts cung ghi
-    // zip.js cho ca 3 kenh nay, xem writeChannelSpecificFiles). Ly do: validator cua Google/Mintegral
-    // cung quet tinh file tim URL "ben ngoai" nhu Facebook truoc day va tu choi neu thay base href gia.
-    if (channel === channels_1.CHANNEL.Facebook || channel === channels_1.CHANNEL.Google || channel === channels_1.CHANNEL.Mintegral) {
-        html = html.replace('<script src="src/polyfills.bundle.js" charset="utf-8"> </script>', () => '<script src="zip.js" type="text/javascript"></script>');
-    }
-    else {
+    if (!NO_BASE_HREF_CHANNELS.includes(channel)) {
         html = html.replace('<head>', () => '<head>\n<base href="https://localhost/">');
-        html = html.replace('<script src="src/polyfills.bundle.js" charset="utf-8"> </script>', () => `<script>${zipJsContent}</script>`);
     }
+    html = EXTERNAL_ZIP_JS_CHANNELS.includes(channel)
+        ? html.replace('<script src="src/polyfills.bundle.js" charset="utf-8"> </script>', () => '<script src="zip.js" type="text/javascript"></script>')
+        : html.replace('<script src="src/polyfills.bundle.js" charset="utf-8"> </script>', () => `<script>${zipJsContent}</script>`);
     const specific = (0, channels_1.getChannelSpecificScript)(channel);
     if (specific.scriptContent) {
         html = html.replace(specific.replaceTarget, () => `${specific.scriptContent}\n${specific.replaceTarget}`);
@@ -121,7 +128,15 @@ async function buildPlayableAds(webMobileDir, cocosVersion, options, onProgress)
         const source = await readSourceFiles(webMobileDir);
         const extVersion = getExtensionVersion();
         const baseHtml = patchBaseHtml(source, cocosVersion, extVersion);
-        const collected = await (0, build_engine_1.collectWebMobileFiles)(webMobileDir, options.compression, options.audio, tempDir);
+        // Chi can quet asset-db tim anh loai tru khi THUC SU co nen (type !== None) - do khong
+        // anh huong gi neu khong nen gi ca.
+        const excludedImageHashes = options.compression.type !== channels_1.CompressionType.None
+            ? await (0, textureExclusions_1.collectExcludedImageHashes)()
+            : new Map();
+        if (excludedImageHashes.size > 0) {
+            console.log(`[playable-ads-builder] Bỏ qua nén ${excludedImageHashes.size} ảnh (đang dùng Use Compress Texture hoặc thuộc Auto Atlas).`);
+        }
+        const collected = await (0, build_engine_1.collectWebMobileFiles)(webMobileDir, options.compression, options.audio, tempDir, excludedImageHashes);
         onProgress?.('processFiles', 1, 1);
         await (0, build_engine_1.generateChannelZipJs)(collected, options.channels, options.product, tempDir, (current, total) => onProgress?.('generateZip', current, total));
         await (0, packager_1.ensureDirectoryExists)(options.outputPath);

@@ -147,7 +147,16 @@ async function writeChannelSpecificFiles(channel, dir, htmlContent, zipJsContent
         case channels_1.CHANNEL.TikTok:
         case channels_1.CHANNEL.OceanEngine:
         case channels_1.CHANNEL.Pangle:
-            await fs.writeFile(path.join(dir, 'config.json'), '{ "playable_orientation": 0 }', 'utf-8');
+            // QUAN TRONG: key phai la "playable_orientation" CHU THUONG - doc chinh thuc cua
+            // TikTok ghi hoa chu P ("Playable_orientation") nhung la SAI, validator that doi hoi
+            // dung chu thuong (da kiem chung bang 1 file mau tung up thanh cong that su). Tung
+            // doi sang chu hoa theo doc truoc day -> chinh la nguyen nhan loi "thieu
+            // Playable_orientation" - validator tim key chu thuong khong thay. "playable_languages"
+            // cung lay dung tu file mau do (khong ro bat buoc hay khong, giu cho an toan).
+            await fs.writeFile(path.join(dir, 'config.json'), JSON.stringify({
+                playable_orientation: 0,
+                playable_languages: ['ja', 'zh', 'ar', 'es', 'en', 'ko', 'pt', 'ru', 'vi'],
+            }), 'utf-8');
             await fs.writeFile(path.join(dir, 'index.html'), htmlContent, 'utf-8');
             break;
         case channels_1.CHANNEL.Kuaishou:

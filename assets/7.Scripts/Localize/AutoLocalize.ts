@@ -59,16 +59,45 @@ export class AutoLocalize extends Component {
             + 'Kích thước gốc này dùng làm mốc để tự thu nhỏ node khi chữ dịch dài hơn bản gốc.\n'
             + 'Điều kiện: chỉnh scale node về đúng ý muốn (ứng với bản gốc) rồi mới bấm, và bấm TRƯỚC khi dùng nút Test.'
     })
-    set setOriginSize(v: boolean) { this.originSize = this.node.getScale() }
+    set setOriginSize(v: boolean) {
+        this.originSize = this.node.getScale();
+        if (this.fitBackground) {
+            this.originBgWidth = this.fitBackground.contentSize.width;
+            this.originLabelWidth = this.getComponent(UITransform).width;
+        }
+    }
     get setOriginSize() { return false }
     @property
     originSize: Vec3 = null;
+
+    @property({
+        type: UITransform,
+        tooltip: 'Node nền của nút (VD Sprite TILED / SLICED). Gán vào thì chữ dịch dài hơn bản gốc sẽ kéo dài\n'
+            + 'chiều rộng nền này ra thay vì thu nhỏ chữ. Để trống thì giữ kiểu cũ (thu nhỏ chữ).'
+    })
+    fitBackground: UITransform = null;
+    @property({
+        visible() { return !!this.fitBackground },
+        tooltip: 'Chiều rộng gốc của nền (ứng với chữ bản gốc) — tự lưu lần đầu, hoặc bấm Set Origin Size để lưu lại.'
+    })
+    originBgWidth: number = 0;
+    @property({
+        visible() { return !!this.fitBackground },
+        tooltip: 'Chiều rộng tối đa của nền (0 = không giới hạn). Vượt quá thì phần còn lại mới thu nhỏ chữ.'
+    })
+    maxBgWidth: number = 0;
+    // Độ rộng khung Label gốc (Label SHRINK/CLAMP) — tự lưu lần đầu, dùng để nới khung theo nền.
+    @property({ visible: false })
+    originLabelWidth: number = 0;
 
     @property({
         type: TTFFont,
         tooltip: 'Font gốc của node — tự lưu lần đầu. Ngôn ngữ dùng System Fonts (ru, ja, ko, zh, th, ar, hi) xong sẽ trả lại font này.'
     })
     originFont: TTFFont = null;
+    // In đậm gốc của Label, lưu cùng lúc với originFont để trả lại đúng khi bỏ System Fonts.
+    @property({ visible: false })
+    originBold: boolean = false;
 
 
     init() {
@@ -100,6 +129,7 @@ export class AutoLocalize extends Component {
         const comp = label || rich;
         if (!this.originFont && !comp.useSystemFont && comp.font) {
             this.originFont = comp.font as TTFFont;
+            this.originBold = label ? label.isBold : false;
         }
         const useSystem = !!translated && SYSTEM_FONT_LANGS.indexOf(usedLang) >= 0;
         const setSystemFont = (system: boolean) => {
@@ -108,7 +138,7 @@ export class AutoLocalize extends Component {
                 c.useSystemFont = system;
                 if (!system && this.originFont) c.font = this.originFont;
             }
-            if (label) label.isBold = system;
+            if (label) label.isBold = system || this.originBold;
         };
         if (this.originFont) {
             setSystemFont(false);
@@ -140,8 +170,24 @@ export class AutoLocalize extends Component {
             }
         };
 
-        setText(text);
         const uit = this.getComponent(UITransform);
+        const bg = this.fitBackground;
+        // Label SHRINK/CLAMP có khung cố định thì contentSize không đổi theo chữ → tạm để NONE
+        // để đo độ rộng thật, đo xong trả overflow lại.
+        const fixedLabel = !!bg && !rich && label.overflow != Label.Overflow.NONE;
+        const overflow = label ? label.overflow : Label.Overflow.NONE;
+        let boxHeight = uit.height;
+        if (bg) {
+            if (this.originBgWidth <= 0) this.originBgWidth = bg.width;
+            if (this.originLabelWidth <= 0) this.originLabelWidth = uit.width;
+            bg.setContentSize(this.originBgWidth, bg.height);
+            if (fixedLabel) {
+                uit.setContentSize(this.originLabelWidth, boxHeight);
+                label.overflow = Label.Overflow.NONE;
+            }
+        }
+
+        setText(text);
         const size = uit.contentSize.clone();
 
         if (translated) {
@@ -153,7 +199,31 @@ export class AutoLocalize extends Component {
         }
         var nSize = uit.contentSize.clone();
 
-        let sl = nSize.width / size.width
+        // Chỗ trống cho chữ (đơn vị local của label) — mặc định bằng độ rộng chữ bản gốc.
+        let room = size.width;
+        if (bg) {
+            // Chữ dịch dài gấp ratio lần bản gốc → khung chữ cần dài gấp ratio lần để giữ nguyên cỡ chữ.
+            const ratio = nSize.width / size.width;
+            const boxWidth = fixedLabel ? this.originLabelWidth : size.width;
+            // Đổi độ rộng chữ sang đơn vị local của nền (2 node có thể scale khác nhau).
+            const k = Math.abs(this.node.worldScale.x / bg.node.worldScale.x) || 1;
+            let bgWidth = this.originBgWidth + Math.max(0, boxWidth * (ratio - 1)) * k;
+            if (this.maxBgWidth > 0) {
+                bgWidth = Math.min(bgWidth, Math.max(this.maxBgWidth, this.originBgWidth));
+            }
+            bg.setContentSize(bgWidth, bg.height);
+            const gained = (bgWidth - this.originBgWidth) / k;
+            if (fixedLabel) {
+                // Trả overflow cũ, nới khung chữ theo nền — phần nào vẫn thiếu thì SHRINK tự co.
+                label.overflow = overflow;
+                uit.setContentSize(this.originLabelWidth + gained, boxHeight);
+                label.updateRenderData(true);
+                return;
+            }
+            room = size.width + gained;
+        }
+
+        let sl = nSize.width / room
         if(sl > 1) {
             let scale = this.originSize.clone().multiplyScalar(1/sl);
             this.node.setScale(scale);

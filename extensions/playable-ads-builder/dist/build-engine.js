@@ -39,6 +39,7 @@ exports.getPlayableEnginePath = getPlayableEnginePath;
 exports.generateChannelZipJs = generateChannelZipJs;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs-extra"));
+const crypto = __importStar(require("crypto"));
 const child_process_1 = require("child_process");
 // @ts-ignore
 const AdmZip = require("adm-zip");
@@ -160,12 +161,12 @@ function isPendingImage(entry) {
 /** Duyệt đệ quy thư mục web-mobile output; ảnh chỉ được ĐĂNG KÝ vào `pendingImages` (nén hàng loạt
  *  ở collectWebMobileFiles bằng 1 tiến trình con duy nhất), audio nén ngay tại đây (ffmpeg tự spawn
  *  tiến trình riêng cho mỗi file nên không bị giới hạn renderer process). */
-async function walk(dir, root, audio, tempDir, pendingImages) {
+async function walk(dir, root, audio, tempDir, pendingImages, excludedImageHashes) {
     const entries = await fs.readdir(dir);
     const results = await Promise.all(entries.map(async (entry) => {
         const full = path.join(dir, entry);
         if ((await fs.stat(full)).isDirectory()) {
-            return walk(full, root, audio, tempDir, pendingImages);
+            return walk(full, root, audio, tempDir, pendingImages, excludedImageHashes);
         }
         const ext = path.extname(full).toLowerCase();
         const relPath = path.relative(root, full).replace(/\\/g, '/');
@@ -173,6 +174,16 @@ async function walk(dir, root, audio, tempDir, pendingImages) {
             return null;
         }
         if (exports.FILE_EXTENSIONS.IMAGE.includes(ext)) {
+            // Anh dang dung "Use Compress Texture" hoac thuoc 1 Auto Atlas - doi chieu theo NOI
+            // DUNG (hash), khong phai ten file (xem textureExclusions.ts) - bo qua nen, giu nguyen
+            // byte goc, tranh nen lossy lam rach/lem mau sheet atlas hoac pha hong texture nen GPU.
+            const data = await fs.readFile(full);
+            const hash = crypto.createHash('sha256').update(data).digest('hex');
+            const excludeReason = excludedImageHashes.get(hash);
+            if (excludeReason !== undefined) {
+                console.log(`[playable-ads-builder]   ⊘ Bỏ qua nén "${relPath}" - khớp với ${excludeReason}.`);
+                return { path: relPath, data };
+            }
             const id = pendingImages.length;
             pendingImages.push({ id, full });
             return { path: relPath, pendingImageId: id };
@@ -186,9 +197,9 @@ async function walk(dir, root, audio, tempDir, pendingImages) {
     }));
     return results.flat().filter((f) => f !== null);
 }
-async function collectWebMobileFiles(webMobileDir, compression, audio, tempDir) {
+async function collectWebMobileFiles(webMobileDir, compression, audio, tempDir, excludedImageHashes = new Map()) {
     const pendingImages = [];
-    const entries = await walk(webMobileDir, webMobileDir, audio, tempDir, pendingImages);
+    const entries = await walk(webMobileDir, webMobileDir, audio, tempDir, pendingImages, excludedImageHashes);
     const compressedById = compression.type === channels_1.CompressionType.None
         ? new Map()
         : await compressImagesBatch(pendingImages, compression, tempDir);

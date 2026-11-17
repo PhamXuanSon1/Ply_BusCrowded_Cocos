@@ -27981,10 +27981,17 @@
       "y": 0.184,
       "z": 0.184
     },
+    "fitBackground": {
+      "__id__": 1270
+    },
+    "originBgWidth": 308.4406779661017,
+    "maxBgWidth": 0,
+    "originLabelWidth": 303.39996337890625,
     "originFont": {
       "__uuid__": "ce8e121a-6659-468d-b491-d1ef0f6892c7",
       "__expectedType__": "cc.TTFFont"
     },
+    "originBold": false,
     "_id": "TTB4jiQe1kz4BK7Fd5Q7Cw"
   },
   {
@@ -28437,7 +28444,7 @@
       "__type__": "cc.Vec3",
       "x": 0,
       "y": 0,
-      "z": 7.105427357601002e-15
+      "z": 0
     },
     "_lrot": {
       "__type__": "cc.Quat",
@@ -28757,7 +28764,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 308.4406779661017,
+      "width": 315.24271259849195,
       "height": 137
     },
     "_anchorPoint": {
@@ -28938,7 +28945,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 303.39996337890625,
+      "width": 313.1247472674017,
       "height": 146
     },
     "_anchorPoint": {
@@ -28968,10 +28975,10 @@
       "b": 255,
       "a": 255
     },
-    "_string": "Play Now",
+    "_string": "Gioca ora",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 100,
+    "_actualFontSize": 67,
     "_fontSize": 100,
     "_fontFamily": "Arial",
     "_lineHeight": 100,
@@ -28984,7 +28991,7 @@
     "_isSystemFontUsed": false,
     "_spacingX": 0,
     "_isItalic": false,
-    "_isBold": true,
+    "_isBold": false,
     "_isUnderline": false,
     "_underlineHeight": 2,
     "_cacheMode": 0,
@@ -29025,14 +29032,24 @@
     "__prefab": null,
     "text": "Play Now",
     "debug": false,
-    "debugLanguage": "",
+    "debugLanguage": "it",
     "originSize": {
       "__type__": "cc.Vec3",
       "x": 0.128,
       "y": 0.128,
       "z": 0.128
     },
-    "originFont": null,
+    "fitBackground": {
+      "__id__": 1296
+    },
+    "originBgWidth": 308.4406779661017,
+    "maxBgWidth": 0,
+    "originLabelWidth": 303.39996337890625,
+    "originFont": {
+      "__uuid__": "ce8e121a-6659-468d-b491-d1ef0f6892c7",
+      "__expectedType__": "cc.TTFFont"
+    },
+    "originBold": false,
     "_id": "UxckRZ4cdDL+fVPSP2ZQmv"
   },
   {
@@ -29670,7 +29687,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 1416.8,
+      "width": 1227.8,
       "height": 126
     },
     "_anchorPoint": {
@@ -29756,18 +29773,23 @@
     "_enabled": true,
     "__prefab": null,
     "text": "Only IQ >160 can escape Pink car",
-    "debug": true,
-    "debugLanguage": "en",
+    "debug": false,
+    "debugLanguage": "it",
     "originSize": {
       "__type__": "cc.Vec3",
       "x": 0.117,
       "y": 0.117,
       "z": 0.117
     },
+    "fitBackground": null,
+    "originBgWidth": 0,
+    "maxBgWidth": 0,
+    "originLabelWidth": 0,
     "originFont": {
       "__uuid__": "ce8e121a-6659-468d-b491-d1ef0f6892c7",
       "__expectedType__": "cc.TTFFont"
     },
+    "originBold": false,
     "_id": "eebirsvo9C9KPuHdHFG1eJ"
   },
   {
@@ -29781,7 +29803,7 @@
     "_enabled": true,
     "__prefab": null,
     "_lineHeight": 100,
-    "_string": "Only IQ &gt;160 frees the <color=#ff1fa0>pink</color> car!",
+    "_string": "QI &gt;160? Libera l’auto <color=#ff1fa0>rosa</color>!",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_fontSize": 100,
@@ -32265,7 +32287,7 @@
     "_string": "Play Now",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 100,
+    "_actualFontSize": 67,
     "_fontSize": 100,
     "_fontFamily": "Arial",
     "_lineHeight": 100,
@@ -32326,7 +32348,17 @@
       "y": 0.302,
       "z": 0.302
     },
-    "originFont": null,
+    "fitBackground": {
+      "__id__": 1381
+    },
+    "originBgWidth": 353.48477229332474,
+    "maxBgWidth": 0,
+    "originLabelWidth": 303.39996337890625,
+    "originFont": {
+      "__uuid__": "ce8e121a-6659-468d-b491-d1ef0f6892c7",
+      "__expectedType__": "cc.TTFFont"
+    },
+    "originBold": true,
     "_id": "x/cT6bRu4c9hQ9cs4u0Kj9"
   },
   {

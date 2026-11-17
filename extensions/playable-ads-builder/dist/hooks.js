@@ -64,8 +64,14 @@ exports.onError = onError;
  * không cần mở PlayableBuilder rời nữa.
  */
 const onAfterBuild = async function (options, result) {
+    // Log VO DIEU KIEN ngay dong dau tien - truoc day cac nhanh "return" som o duoi khong log gi
+    // ca, nen khi hook khong chay toi dau (vd pkgOptions rong) thi project.log hoan toan trong
+    // trang, nhin giong nhu hook chua bao gio duoc goi. Dong nay giup phan biet 2 truong hop:
+    // "hook khong chay" (khong co ca dong nay) vs "hook chay nhung dung som vi ly do X".
+    log(`onAfterBuild duoc goi. platform=${options.platform || '?'}, packages co key:`, Object.keys(options.packages || {}));
     const pkgOptions = options.packages[global_1.PACKAGE_NAME];
     if (!pkgOptions) {
+        log(`Build task nay KHONG co options cua "${global_1.PACKAGE_NAME}" (options.packages["${global_1.PACKAGE_NAME}"] rong) - bo qua dong goi playable ad. Thuong do Build Task dang dung chua tung mo qua tab options cua extension nay (vao Build panel, chon dung platform web-mobile, mo tab "${global_1.PACKAGE_NAME}" it nhat 1 lan de no luu default vao task).`);
         return;
     }
     // Dùng luôn trường "Name" gốc ở đầu panel Build (options.name) làm tên game,
