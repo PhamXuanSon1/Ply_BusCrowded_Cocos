@@ -18,6 +18,7 @@ import { truncate } from './BoxCreator';
 import { Line3DRing } from '../../Misc/Line2D/Line3DRing';
 import { Line2D } from '../../Misc/Line2D/Line2D';
 import { GameMap, MapKind } from './GameMap';
+import { HumanGroup } from './HumanGroup';
 // Cách sắp thứ tự row người đi vào ring (SpawnMode.Data / map RingFeeder).
 export enum RowOrder {
     Data = 0,       // giữ nguyên thứ tự LinearHumanData
@@ -586,8 +587,18 @@ export class Game extends Component {
     }
 
 
+    // nhóm người đứng riêng của xe Group Bus Type (vd FireCar), component trên cùng node, tự thêm nếu thiếu
+    group: HumanGroup = null;
+
+    // xe có nhóm khách đứng riêng: không lấy người từ ring, không tính vào row data
+    isGroupBus(b: Bus) {
+        return !!this.group?.isGroupBus(b);
+    }
+
     onLoad() {
         gm = this;
+        this.group = this.getComponent(HumanGroup) ?? this.addComponent(HumanGroup);
+        this.group.g = this;
     }
 
     firstMove() {
@@ -628,6 +639,7 @@ export class Game extends Component {
         // Dựng xe TRƯỚC ring: số row mỗi màu phải khớp đúng sức chứa xe màu đó (fitRowsToBuses).
         this.initBuses();
         this.totalChallenge = this.buses.length;
+        this.group.init();
         this.initRowData();
         this.initRing();
 
@@ -1042,6 +1054,7 @@ export class Game extends Component {
         while(next < sequence.length || active.length > 0) {
             while(active.length < window && next < sequence.length) {
                 let b = sequence[next++];
+                if(this.isGroupBus(b)) continue;
                 active.push({ color: b.color, left: b.seats.length });
             }
             let turn = [...active];
@@ -1057,7 +1070,7 @@ export class Game extends Component {
 
     fitRowsToBuses(data: ColorType[]): ColorType[] {
         let need = new Map<ColorType, number>();
-        this.buses.forEach(b => need.set(b.color, (need.get(b.color) || 0) + b.seats.length));
+        this.buses.forEach(b => { if(!this.isGroupBus(b)) need.set(b.color, (need.get(b.color) || 0) + b.seats.length); });
         let result: ColorType[] = [];
         let used = new Map<ColorType, number>();
         data.forEach(c => {
@@ -1314,14 +1327,16 @@ export class Game extends Component {
 
     // mọi xe chưa chạy khỏi map: còn ở bãi (this.buses) + đang chạy vào / đỗ ở slot (bị bỏ khỏi this.buses lúc rời bãi)
     activeBuses(): Bus[] {
-        let list = this.buses.filter(b => b?.isValid);
-        this.slots.forEach(s => { let b = s.bus; if(b?.isValid && !list.includes(b)) list.push(b); });
+        // bỏ xe có nhóm khách riêng (HumanGroup): không cần người trên ring
+        let list = this.buses.filter(b => b?.isValid && !this.isGroupBus(b));
+        this.slots.forEach(s => { let b = s.bus; if(b?.isValid && !this.isGroupBus(b) && !list.includes(b)) list.push(b); });
         return list;
     }
 
     // các màu xe có trong màn (theo BusData, dùng được cả lúc xe chưa dựng)
     levelColors(): number[] {
-        return Array.from(new Set(BusData.map(d => d[1] as number)));
+        let groupType = this.group?.separate ? this.group.busType - PoolType.Bus : -1;
+        return Array.from(new Set(BusData.filter(d => d[0] != groupType).map(d => d[1] as number)));
     }
 
     // màu cho 1 row mới theo ColorLoop: hết cụm (hoặc màu không còn xe nhận) thì sang màu kế tiếp
@@ -1722,7 +1737,7 @@ export class Game extends Component {
     checkRingExit() {
         if(!this.ringExit) return;
         const [a, b] = this.ringExit;
-        let buses = this.slots.map(s => s.bus).filter(bus => bus && bus.isValid && !bus.moving && bus.remain > 0);
+        let buses = this.slots.map(s => s.bus).filter(bus => bus && bus.isValid && !bus.moving && bus.remain > 0 && !this.isGroupBus(bus));
         if(!buses.length) return;
         this.ringSlots.forEach((row, i) => {
             if(!row || !row.humans.length) return;
@@ -1754,7 +1769,7 @@ export class Game extends Component {
 
     // còn row nào trên ring cùng màu với xe đang chờ trong slot không (chưa được tính thua)
     ringCanBoard() {
-        let need = new Set(this.slots.map(s => s.bus).filter(b => b && b.isValid && b.remain > 0).map(b => b.color as number));
+        let need = new Set(this.slots.map(s => s.bus).filter(b => b && b.isValid && b.remain > 0 && !this.isGroupBus(b)).map(b => b.color as number));
         return this.ringSlots.some(r => r && r.humans.length && need.has(r.color));
     }
 
@@ -2286,7 +2301,7 @@ export class Game extends Component {
         this.tryFeedEmptySlots();
         this.outsideHumans = this.getFrontHumans();
         let humans: Human[] = [];
-        this.slots.map(s => s.bus).filter(b => b).forEach(b => {
+        this.slots.map(s => s.bus).filter(b => b && !this.isGroupBus(b)).forEach(b => {
             humans = humans.concat(this.checkBus(b));
         });
         if(humans.length > 0) this.removeHumans(humans);
@@ -2336,6 +2351,7 @@ export class Game extends Component {
     getHumanDataFromBuses(): ColorType[] {
         let data: ColorType[] = [];
         this.buses.forEach(b => {
+            if(this.isGroupBus(b)) return;
             for(let i = 0; i < b.seats.length; i++) {
                 data.push(b.color);
             }
@@ -2781,7 +2797,10 @@ export class Game extends Component {
                     bus.smokint();
                     // Ring3D: người lên xe ở lối ra của ring (checkRingExit); RingFeeder: lấy luôn người ở vùng chính diện
                     bus.onSlot();
-                    if(this.isFeeder()) {
+                    // xe có nhóm khách riêng: gọi cả nhóm lên xe, không lấy người từ ring
+                    if(this.isGroupBus(bus)) {
+                        this.group.board(bus);
+                    } else if(this.isFeeder()) {
                         let humans = this.checkBus(bus);
                         if(humans.length > 0) this.removeHumans(humans);
                     }
