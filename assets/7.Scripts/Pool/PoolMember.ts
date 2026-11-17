@@ -20,6 +20,15 @@ export enum PoolType {
     VFX,
     TextFx,
     Score,
+    // xe cứu hoả (khung + ghế như Bus), port từ Bus Jam. Thêm cuối để không lệch số các loại đã lưu trong scene/prefab;
+    // trong BusData loại = FireCar - Bus = 8. Khách của nó đứng nhóm riêng (HumanGroup)
+    FireCar,
+    // lính cứu hoả: người trong nhóm riêng của xe cứu hoả (HumanGroup), dùng component Human như người thường
+    Fireman,
+    // xe trượt ông già Noel (khách đứng riêng HumanGroup), loại riêng không dùng chung FireCar; BusData loại = Sleigh - Bus = 10
+    Sleigh,
+    // ông già Noel: khách của xe trượt (HumanGroup), dùng component Human, rig giống Fireman
+    Santa,
 }
 
 @ccclass
