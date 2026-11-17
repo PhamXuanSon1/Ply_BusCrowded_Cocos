@@ -94,7 +94,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0.3,
-      "y": 7.206,
+      "y": 6.606,
       "z": -1.261
     },
     "_lrot": {
@@ -7131,6 +7131,8 @@
       "__id__": 0
     },
     "fileId": "57bOMAZshHYail7beKBxMR",
+    "instance": null,
+    "targetOverrides": null,
     "nestedPrefabInstanceRoots": null
   },
   {
@@ -7173,7 +7175,7 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 0,
+      "x": 0.013,
       "y": 0,
       "z": 0
     },
@@ -7430,6 +7432,8 @@
       "__id__": 0
     },
     "fileId": "36ksEbAi5AbqdlRBArkPMc",
+    "instance": null,
+    "targetOverrides": null,
     "nestedPrefabInstanceRoots": null
   },
   {

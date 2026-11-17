@@ -1,4 +1,4 @@
-import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, misc, MeshRenderer, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, UIOpacity, UITransform, v2, view, v3, Vec2, Vec3 } from 'cc';
+import { _decorator, Animation, Camera, CCInteger, CCObject, color, Color, Component, director, Enum, EventKeyboard, EventTouch, ImageAsset, Input, input, instantiate, KeyCode, Label, Layers, Mat4, Material, misc, MeshRenderer, Node, ParticleSystem, quat, Quat, rect, Sprite, SpriteFrame, sys, Texture2D, toDegree, toRadian, Tween, tween, UIOpacity, UITransform, UIRenderer, v2, view, v3, Vec2, Vec3 } from 'cc';
 import { Mats } from '../Misc/Mats';
 import { Bus } from './Bus';
 import { EDITOR, EDITOR_NOT_IN_PREVIEW,} from 'cc/env';
@@ -367,6 +367,8 @@ export class Game extends Component {
         if(black && this.introDuration > 0) {
             black.active = true;
             this.dimIntroUI(true);
+            // UI kéo bề ngang / bám mép (widthNodes, bindings) sau khi khởi tạo -> đo lại vùng phủ ở frame sau
+            this.scheduleOnce(() => { if(this.introBus) this.dimIntroUI(true); }, 0);
         }
         this.introBus = bus;
         // Đợi 1 frame cho worldBounds của mesh cập nhật rồi mới đo vị trí/kích thước xe
@@ -386,21 +388,61 @@ export class Game extends Component {
     spotGlow: number = 0.5;
     @property({ group: G_INTRO, range: [0, 1, 0.05], slide: true, tooltip: "Độ sáng của quầng trắng ngoài viền (0 = tắt, 1 = trắng đặc)." })
     spotGlowAlpha: number = 0.6;
-    @property({ group: G_INTRO, type: [Node], tooltip: "Node UI (canvas UICam, luôn vẽ đè lên màn tối) cần trông như nằm DƯỚI màn tối trong lúc intro, vd banner.\nTrong intro bị mờ xuống đúng độ tối của Black, intro tắt thì sáng lại." })
+    @property({ group: G_INTRO, type: [Node], tooltip: "Node UI (canvas UICam, luôn vẽ đè lên màn tối) cần trông như nằm DƯỚI màn tối trong lúc intro, vd banner.\nTrong intro được phủ lớp đen cùng độ tối với Black, intro tắt thì lớp phủ mờ dần đi." })
     introDimNodes: Node[] = [];
     introSpot: Node = null;
 
-    // làm mờ / trả lại các node introDimNodes. dim = true: mờ ngay theo độ tối của Black; false: sáng lại trong time giây
+    // lớp phủ đen (không lưu vào scene) đang dùng cho từng node introDimNodes
+    introDimOverlays: Map<Node, Node> = new Map();
+
+    // phủ / gỡ lớp đen lên các node introDimNodes. Phủ đen cùng màu + độ đậm với Black (không giảm opacity của node,
+    // vì giảm opacity làm node trong suốt, lộ cảnh phía sau -> trông bạc màu thay vì tối đều như các vật khác).
+    // dim = true: phủ ngay, vừa khít khung bao các UITransform đang bật của node; false: mờ dần lớp phủ trong time giây
     dimIntroUI(dim: boolean, time = 0) {
-        const black = this.getIntroBlack();
-        const a = black?.getComponent(Sprite)?.color.a ?? 213;
-        const target = dim ? Math.round(255 - a) : 255;
+        const bs = this.getIntroBlack()?.getComponent(Sprite);
         this.introDimNodes.forEach(n => {
             if(!n?.isValid) return;
-            const op = n.getComponent(UIOpacity) ?? n.addComponent(UIOpacity);
+            let ov = this.introDimOverlays.get(n);
+            if(!dim) {
+                if(!ov?.isValid || !ov.active) return;
+                const op = ov.getComponent(UIOpacity);
+                Tween.stopAllByTarget(op);
+                if(time > 0) tween(op).to(time, { opacity: 0 }).call(() => { ov.active = false; }).start();
+                else ov.active = false;
+                return;
+            }
+            if(!ov?.isValid) {
+                ov = new Node("IntroDim");
+                ov._objFlags |= CCObject.Flags.DontSave;
+                ov.addComponent(UITransform);
+                const sp = ov.addComponent(Sprite);
+                sp.sizeMode = Sprite.SizeMode.CUSTOM;
+                sp.trim = false;
+                ov.addComponent(UIOpacity);
+                this.introDimOverlays.set(n, ov);
+            }
+            ov.layer = n.layer;
+            ov.parent = n;
+            ov.setSiblingIndex(n.children.length - 1);   // vẽ sau cùng trong node -> đè lên mọi thứ của node
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            n.getComponentsInChildren(UITransform).forEach(u => {
+                // chỉ đo node thật sự vẽ (Sprite / Label...), bỏ node rỗng chỉ có UITransform (vd Banner 100x100) kẻo khung phình to
+                if(u.node === ov || !u.node.activeInHierarchy || !u.node.getComponent(UIRenderer)) return;
+                const r = u.getBoundingBoxToWorld();
+                x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y);
+                x1 = Math.max(x1, r.x + r.width); y1 = Math.max(y1, r.y + r.height);
+            });
+            if(!isFinite(x0)) { ov.active = false; return; }
+            ov.active = true;
+            ov.setWorldScale(1, 1, 1);
+            ov.setWorldPosition((x0 + x1) / 2, (y0 + y1) / 2, n.worldPosition.z);
+            ov.getComponent(UITransform).setContentSize(x1 - x0, y1 - y0);
+            const sp = ov.getComponent(Sprite);
+            sp.spriteFrame = bs?.spriteFrame ?? sp.spriteFrame;
+            sp.color = bs ? bs.color.clone() : new Color(0, 0, 0, 213);
+            const op = ov.getComponent(UIOpacity);
             Tween.stopAllByTarget(op);
-            if(time > 0) tween(op).to(time, { opacity: target }).start();
-            else op.opacity = target;
+            op.opacity = 255;
         });
     }
 
