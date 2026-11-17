@@ -1,0 +1,246 @@
+{
+  "ver": "2.3.14",
+  "importer": "gltf",
+  "imported": true,
+  "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8",
+  "files": [],
+  "subMetas": {
+    "62579": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@62579",
+      "displayName": "",
+      "id": "62579",
+      "name": "XeCuuHoa_txte.material",
+      "userData": {
+        "gltfIndex": 4
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "a1bd8": {
+      "importer": "gltf-mesh",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a1bd8",
+      "displayName": "",
+      "id": "a1bd8",
+      "name": "FireCar_open.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 1525
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "e5064": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@e5064",
+      "displayName": "",
+      "id": "e5064",
+      "name": "XeCuuHoa_txta.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "a7829": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a7829",
+      "displayName": "",
+      "id": "a7829",
+      "name": "car_grassa.material",
+      "userData": {
+        "gltfIndex": 1
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "a8811": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a8811",
+      "displayName": "",
+      "id": "a8811",
+      "name": "XeCuuHoa_txtd.material",
+      "userData": {
+        "gltfIndex": 2
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "0056d": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@0056d",
+      "displayName": "",
+      "id": "0056d",
+      "name": "XeCuuHoa_txtm.material",
+      "userData": {
+        "gltfIndex": 3
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "c4e12": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@c4e12",
+      "displayName": "",
+      "id": "c4e12",
+      "name": "XeCuuHoa_txtc.material",
+      "userData": {
+        "gltfIndex": 5
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "ed489": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@ed489",
+      "displayName": "",
+      "id": "ed489",
+      "name": "XeCuuHoa_txta1.material",
+      "userData": {
+        "gltfIndex": 6
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "2bd7a": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@2bd7a",
+      "displayName": "",
+      "id": "2bd7a",
+      "name": "car_grassb.material",
+      "userData": {
+        "gltfIndex": 7
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "8ed9f": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@8ed9f",
+      "displayName": "",
+      "id": "8ed9f",
+      "name": "XeCuuHoa_txto.material",
+      "userData": {
+        "gltfIndex": 8
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "9de0e": {
+      "importer": "gltf-material",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@9de0e",
+      "displayName": "",
+      "id": "9de0e",
+      "name": "XeCuuHoa_Seat.material",
+      "userData": {
+        "gltfIndex": 9
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f0eec": {
+      "importer": "gltf-scene",
+      "uuid": "2bb5e2f0-7747-468e-8460-55555b6ed9a8@f0eec",
+      "displayName": "",
+      "id": "f0eec",
+      "name": "FireCar_open.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a1bd8"
+      ],
+      "skeletons": [],
+      "textures": [],
+      "materials": [
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@e5064",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a7829",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@a8811",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@0056d",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@62579",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@c4e12",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@ed489",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@2bd7a",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@8ed9f",
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@9de0e"
+      ],
+      "scenes": [
+        "2bb5e2f0-7747-468e-8460-55555b6ed9a8@f0eec"
+      ]
+    }
+  }
+}

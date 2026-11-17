@@ -1,0 +1,145 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0",
+  "files": [],
+  "subMetas": {
+    "54002": {
+      "importer": "gltf-mesh",
+      "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0@54002",
+      "displayName": "",
+      "id": "54002",
+      "name": "Fireman.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 930
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "438fe": {
+      "importer": "gltf-skeleton",
+      "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0@438fe",
+      "displayName": "",
+      "id": "438fe",
+      "name": "UnnamedSkeleton.skeleton",
+      "userData": {
+        "gltfIndex": 0,
+        "jointsLength": 17
+      },
+      "ver": "1.0.1",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "91dcf": {
+      "importer": "texture",
+      "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0@91dcf",
+      "displayName": "",
+      "id": "91dcf",
+      "name": "file4.texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": false,
+        "imageUuidOrDatabaseUri": "db://assets/8.Models/Meshs/Fireman/gradient_2.png"
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "c0357": {
+      "importer": "gltf-material",
+      "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0@c0357",
+      "displayName": "",
+      "id": "c0357",
+      "name": "M_gradient5.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "7b2b7": {
+      "importer": "gltf-scene",
+      "uuid": "fde20367-de60-4ae0-8bbb-c895089cdda0@7b2b7",
+      "displayName": "",
+      "id": "7b2b7",
+      "name": "Fireman.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [
+      {
+        "name": "file4",
+        "uri": "db://assets/8.Models/Meshs/Fireman/gradient_2.png"
+      }
+    ],
+    "fbx": {
+      "smartMaterialEnabled": true
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "fde20367-de60-4ae0-8bbb-c895089cdda0@54002"
+      ],
+      "skeletons": [
+        "fde20367-de60-4ae0-8bbb-c895089cdda0@438fe"
+      ],
+      "textures": [
+        "fde20367-de60-4ae0-8bbb-c895089cdda0@91dcf"
+      ],
+      "materials": [
+        "fde20367-de60-4ae0-8bbb-c895089cdda0@c0357"
+      ],
+      "scenes": [
+        "fde20367-de60-4ae0-8bbb-c895089cdda0@7b2b7"
+      ]
+    }
+  }
+}
