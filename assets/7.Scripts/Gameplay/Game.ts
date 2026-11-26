@@ -42,6 +42,7 @@ const { ccclass, property, executeInEditMode } = _decorator;
 const G_STORE = { name: "Store & Hướng dẫn", id: "store", displayOrder: 1, style: "section" };
 const G_LOOK = { name: "Màu & Hiển thị người", id: "look", displayOrder: 2, style: "section" };
 const G_SPAWN = { name: "Sinh người lên ring", id: "spawn", displayOrder: 3, style: "section" };
+const G_MOVE = { name: "Tốc độ xe", id: "move", displayOrder: 4, style: "section" };
 const G_INTRO = { name: "Intro (màn tối + khung sáng)", id: "intro", displayOrder: 5, style: "section" };
 const G_TOOL = { name: "Công cụ Editor", id: "tool", displayOrder: 6, style: "section" };
 
@@ -74,6 +75,33 @@ export class HumanRow {
     // true trong lúc đang chuyển người từ hàng chờ vào (feedSlotFrom) — chặn checkBus()/
     // tryFeedEmptySlots() động vào.
     moving: boolean = false;
+}
+
+// Tên hiển thị theo đúng màu trong bảng Game.colors của scene (index màu), khác tên ColorType.
+// Đổi màu trong Game.colors thì sửa lại tên ở đây cho khớp; giá trị lưu vẫn là index nên không mất dữ liệu.
+export const RingColor = Enum({
+    "0 - Đỏ sẫm": 0,
+    "1 - Cam đỏ": 1,
+    "2 - Vàng mù tạt": 2,
+    "3 - Xanh lá đậm": 3,
+    "4 - Hồng mận": 4,
+    "5 - Xanh ngọc": 5,
+    "6 - Xanh dương": 6,
+    "7 - Tím": 7,
+    "8 - Nâu đậm": 8,
+    "9 - Cam đỏ (2)": 9,
+    "10 - Kem": 10,
+});
+
+/** Tỷ lệ ra người của 1 màu (ColorLoop): nhân độ dài cụm row của màu đó */
+@ccclass('ColorSpawnWeight')
+export class ColorSpawnWeight {
+    @property({ type: RingColor, tooltip: "Màu (theo index trong Game.colors)." }) color: number = 0;
+    @property({ min: 0, tooltip: "Hệ số nhân số row của cụm màu này (mặc định 1).\n>1 = ra nhiều hơn, <1 = ra ít hơn (tối thiểu 1 row), 0 = không ra màu này (trừ khi mọi màu đều 0)." })
+    weight: number = 1;
+    @property({ tooltip: "Chỉ sinh đúng số row bằng tổng số ghế của các xe màu này (1 ghế = 1 row), không sinh thừa.\nRow chưa được đón vẫn chạy vòng trên ring tới khi lên xe; phát đủ rồi thì ô của màu này được lấp bằng màu bên cạnh.\nDùng cho màu có ít xe." })
+    exact: boolean = false;
+    constructor(color = 0, weight = 1) { this.color = color; this.weight = weight; }
 }
 
 @ccclass('Game')
@@ -144,6 +172,16 @@ export class Game extends Component {
     loopRowsMax: number = 4;
     @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Xử lý màu đã hết xe cần người:\n- Tắt: cụm màu đó vẫn chạy trên ring, chuỗi màu vẫn quay đều mọi màu trong màn.\n- Bật: đổi ngay cả cụm sang màu còn cần và bỏ màu đó khỏi chuỗi → ring chỉ còn màu có ích, dễ thắng hơn." })
     recolorFinished: boolean = false;
+    @property({ group: G_SPAWN, type: [ColorSpawnWeight], visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Tỷ lệ ra người theo màu: thêm dòng cho màu muốn chỉnh, hệ số nhân vào số row của cụm (Loop Rows Min..Max).\nVd: Red 2 = cụm đỏ dài gấp đôi, Blue 0.5 = cụm xanh ngắn một nửa. Màu không liệt kê = 1." })
+    colorWeights: ColorSpawnWeight[] = [];
+    @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop; }, tooltip: "(ColorLoop) Tick để điền Color Weights bằng đúng các màu xe có trong màn (theo BusData), giữ hệ số đã nhập; màu không còn trong màn bị bỏ.\nSau đó chỉ cần sửa số Weight của từng màu rồi lưu scene." })
+    get fillColorWeights() { return false; }
+    set fillColorWeights(v: boolean) {
+        if(!v) return;
+        let old = this.colorWeights ?? [];
+        this.colorWeights = this.levelColors().sort((a, b) => a - b)
+            .map(c => new ColorSpawnWeight(c, old.find(x => x.color == c)?.weight ?? 1));
+    }
     @property({ group: G_SPAWN, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.ColorLoop && !this.recolorFinished; }, tooltip: "(ColorLoop) Ngừng sinh người của màu vừa hết xe (không còn xe nào ở bãi hay trong slot cần màu đó):\n- Cụm màu đó đang ra ở đầu vào thì vẫn ra nốt lượt đó.\n- Sau đó row màu đó chạy hết đường thì biến mất, không hiện lại ở đầu vào nữa; ô trống được lấp bằng màu còn cần.\n- Người còn thừa đang chạy trên ring không bị đổi màu đột ngột.\nKhác Recolor Finished: không tô lại ngay cả cụm, chỉ ngừng sinh thêm." })
     stopFinishedSpawn: boolean = false;
     @property({ group: G_SPAWN, type: FillMode, visible() { return !this.isFeeder() && this.spawnMode == SpawnMode.Data; }, tooltip: "(Data) Khi đã phát hết row cho mọi xe mà ring còn ô trống:\n- None: để trống.\n- WinColors: lấp bằng màu các xe còn chờ người (dư người giúp thắng).\n- LevelColors: lấp bằng mọi màu có trong màn." })
@@ -204,6 +242,7 @@ export class Game extends Component {
 
     // hệ số THỜI GIAN di chuyển xe (Ulis.moveTo: time = quãng đường / 10 * busSpeed) — nhỏ hơn = nhanh hơn.
     // 1 / 1.5 = xe chạy nhanh gấp 1.5 lần so với ban đầu (1).
+    @property({ group: G_MOVE, min: 0.05, step: 0.05, tooltip: "Hệ số THỜI GIAN xe chạy: thời gian = quãng đường / 10 × Bus Speed.\n- NHỎ hơn = xe chạy NHANH hơn (0.5 = nhanh gấp 2, 1 = tốc độ gốc, 2 = chậm gấp 2).\n- Áp dụng cho mọi đoạn xe chạy: ra đường vào slot, đâm xe chặn rồi lùi về, chạy ra khỏi slot khi đầy khách." })
     busSpeed: number = 1 / 1.5;
     humanSpeed: number = 2;
 
@@ -361,7 +400,8 @@ export class Game extends Component {
     // Black, thay bằng nhóm con "IntroSpot": 1 khung vuông bo góc ôm xe hướng dẫn (trong khung
     // trong suốt, viền trắng phát sáng) + 4 mảng tối phủ phần còn lại. Tự tắt sau introDuration giây.
     startIntro(bus: Node) {
-        if(!bus) return;
+        // bỏ tick Use Intro (hoặc introDuration = 0): bỏ hẳn intro (không màn tối, không khung sáng)
+        if(!bus || !this.useIntro || this.introDuration <= 0) return;
         // Black để tắt sẵn trong scene (không phủ tối Scene editor), lúc chạy mới bật lên cho intro
         const black = this.getIntroBlack();
         if(black && this.introDuration > 0) {
@@ -376,19 +416,21 @@ export class Game extends Component {
         this.scheduleOnce(() => this.autoEndIntro(), this.introDuration);
     }
 
-    @property({ group: G_INTRO, tooltip: "Số giây màn tối intro tự tắt (không cần bấm).\nIntro phủ tối cả màn, chỉ chừa khung sáng quanh xe đầu tiên trong Tap Indices." })
+    @property({ group: G_INTRO, tooltip: "Tick: đầu game phủ màn tối, chừa khung sáng quanh xe đầu tiên trong Tap Indices.\nBỏ tick: không có intro, vào game là sáng luôn (tay hướng dẫn vẫn chạy)." })
+    useIntro: boolean = true;
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, tooltip: "Số giây màn tối intro tự tắt (không cần bấm).\nIntro phủ tối cả màn, chỉ chừa khung sáng quanh xe đầu tiên trong Tap Indices." })
     introDuration: number = 2.5;
-    @property({ group: G_INTRO, tooltip: "Khoảng hở từ xe tới viền khung sáng, tính theo tỉ lệ cạnh ngắn của xe (0.2 = 20% bề ngang xe)." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, tooltip: "Khoảng hở từ xe tới viền khung sáng, tính theo tỉ lệ cạnh ngắn của xe (0.2 = 20% bề ngang xe)." })
     spotPadding: number = 0.2;
-    @property({ group: G_INTRO, tooltip: "Bán kính bo góc khung sáng, tỉ lệ cạnh ngắn của xe (0 = góc vuông)." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, tooltip: "Bán kính bo góc khung sáng, tỉ lệ cạnh ngắn của xe (0 = góc vuông)." })
     spotCorner: number = 0.25;
-    @property({ group: G_INTRO, tooltip: "Độ dày viền trắng của khung, tỉ lệ cạnh ngắn của xe." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, tooltip: "Độ dày viền trắng của khung, tỉ lệ cạnh ngắn của xe." })
     spotLine: number = 0.08;
-    @property({ group: G_INTRO, tooltip: "Độ loang của quầng sáng trắng bên ngoài viền, tỉ lệ cạnh ngắn của xe (0 = không có quầng)." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, tooltip: "Độ loang của quầng sáng trắng bên ngoài viền, tỉ lệ cạnh ngắn của xe (0 = không có quầng)." })
     spotGlow: number = 0.5;
-    @property({ group: G_INTRO, range: [0, 1, 0.05], slide: true, tooltip: "Độ sáng của quầng trắng ngoài viền (0 = tắt, 1 = trắng đặc)." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, range: [0, 1, 0.05], slide: true, tooltip: "Độ sáng của quầng trắng ngoài viền (0 = tắt, 1 = trắng đặc)." })
     spotGlowAlpha: number = 0.6;
-    @property({ group: G_INTRO, type: [Node], tooltip: "Node UI (canvas UICam, luôn vẽ đè lên màn tối) cần trông như nằm DƯỚI màn tối trong lúc intro, vd banner.\nTrong intro được phủ lớp đen cùng độ tối với Black, intro tắt thì lớp phủ mờ dần đi." })
+    @property({ group: G_INTRO, visible() { return this.useIntro; }, type: [Node], tooltip: "Node UI (canvas UICam, luôn vẽ đè lên màn tối) cần trông như nằm DƯỚI màn tối trong lúc intro, vd banner.\nTrong intro được phủ lớp đen cùng độ tối với Black, intro tắt thì lớp phủ mờ dần đi." })
     introDimNodes: Node[] = [];
     introSpot: Node = null;
 
@@ -1253,6 +1295,8 @@ export class Game extends Component {
         this.ringProgress = 0;
         this.ringSlots = Array(count).fill(null);
         this.ringSlotColors = Array(count).fill(-1);
+        this.exactSpawned = {};
+        this.exactQuota = {};
         this.ringExit = road.getExitRange();
         this.finishedKey = '';
 
@@ -1278,25 +1322,40 @@ export class Game extends Component {
     planLoopColors(count: number): boolean {
         if(this.spawnMode != SpawnMode.ColorLoop || count <= 0) return false;
         let colors = this.levelColors().sort((a, b) => a - b);
+        // màu weight = 0 bỏ khỏi vòng (trừ khi mọi màu đều 0)
+        let weighted = colors.filter(c => this.weightOf(c) > 0);
+        if(weighted.length) colors = weighted;
         let C = colors.length;
         if(!C) return false;
         let lo = Math.max(1, Math.round(this.loopRowsMin));
         let hi = Math.max(lo, Math.round(this.loopRowsMax));
+        // khoảng độ dài cụm của từng màu = Loop Rows Min..Max nhân Weight (Color Weights)
+        let cLo = colors.map(c => Math.max(1, Math.round(lo * (weighted.length ? this.weightOf(c) : 1))));
+        let cHi = colors.map((c, k) => Math.max(cLo[k], Math.round(hi * (weighted.length ? this.weightOf(c) : 1))));
+        let sumLo = cLo.reduce((a, b) => a + b, 0);
+        let sumHi = cHi.reduce((a, b) => a + b, 0);
+        let sumMid = (sumLo + sumHi) / 2;
         let best = 0;
         for(let m = 1; m * C <= count; m++) {
-            let K = m * C;
-            if(K * lo > count || K * hi < count) continue;
-            if(!best || Math.abs(count / K - (lo + hi) / 2) < Math.abs(count / (best * C) - (lo + hi) / 2)) best = m;
+            if(m * sumLo > count || m * sumHi < count) continue;
+            if(!best || Math.abs(count / m - sumMid) < Math.abs(count / best - sumMid)) best = m;
         }
         if(!best) return false;
         let K = best * C;
-        let lens = Array(K).fill(Math.floor(count / K));
-        let extra = count - lens[0] * K;
-        for(let k = 0; k < extra; k++) lens[k]++;
-        // xáo độ dài: chuyển từng row giữa 2 cụm ngẫu nhiên, luôn trong lo..hi -> tổng không đổi
-        for(let t = 0; t < K * 4; t++) {
-            let a = (Math.random() * K) | 0, b = (Math.random() * K) | 0;
-            if(a != b && lens[a] > lo && lens[b] < hi) { lens[a]--; lens[b]++; }
+        let kLo = (k: number) => cLo[k % C], kHi = (k: number) => cHi[k % C];
+        // bắt đầu ở min từng cụm, chia phần dư từng row cho cụm ngẫu nhiên còn chỗ (xác suất theo chỗ trống)
+        // -> tổng vừa khít count, màu weight cao nhận nhiều row hơn
+        let lens = Array.from({ length: K }, (_, k) => kLo(k));
+        let left = count - best * sumLo;
+        while(left > 0) {
+            let room = lens.map((l, k) => kHi(k) - l);
+            let total = room.reduce((a, b) => a + b, 0);
+            if(total <= 0) break;
+            let r = Math.random() * total;
+            let k = 0;
+            while(k < K - 1 && r >= room[k]) { r -= room[k]; k++; }
+            lens[k]++;
+            left--;
         }
         // giống thứ tự đổ sẵn cũ: từ ô cuối (gần lối ra) về ô 0, màu tăng dần, hết vòng quay lại màu nhỏ nhất
         let i = count - 1;
@@ -1312,6 +1371,13 @@ export class Game extends Component {
     spawnRingRow(i: number, color: number = undefined): RingRow {
         if(color === undefined) color = this.nextRowColor();
         if(color === undefined) return null;
+        // ColorLoop + Exact: màu đã phát đủ số ghế thì đổi sang màu khác
+        if(this.spawnMode == SpawnMode.ColorLoop && this.exactLeft(color) <= 0) {
+            color = this.exactSubstitute(i);
+            if(color === undefined) return null;
+            this.ringSlotColors[i] = color;
+        }
+        if(this.isExact(color)) this.exactSpawned[color] = (this.exactSpawned[color] ?? 0) + 1;
         let row = new RingRow();
         row.color = color;
         row.slotIndex = i;
@@ -1422,16 +1488,63 @@ export class Game extends Component {
             : this.levelColors();
         // lúc dựng ring đầu tiên xe có thể chưa có remain -> lấy màu từ BusData
         if(!colors.length) colors = this.levelColors();
+        // màu Exact đã phát đủ số ghế -> không chọn nữa
+        let notDone = colors.filter(c => this.exactLeft(c) > 0);
+        if(notDone.length) colors = notDone;
         if(!colors.length) return undefined;
+        // màu weight = 0 bị bỏ khỏi chuỗi (trừ khi mọi màu đều 0)
+        let weighted = colors.filter(c => this.weightOf(c) > 0);
+        if(weighted.length) colors = weighted;
         colors.sort((a, b) => a - b);
         if(this.loopRowsLeft <= 0 || !colors.includes(this.loopColor)) {
             this.loopColor = colors.find(c => c > this.loopColor) ?? colors[0];
             let lo = Math.max(1, Math.round(this.loopRowsMin));
             let hi = Math.max(lo, Math.round(this.loopRowsMax));
-            this.loopRowsLeft = lo + Math.floor(Math.random() * (hi - lo + 1));
+            let rows = lo + Math.floor(Math.random() * (hi - lo + 1));
+            this.loopRowsLeft = Math.max(1, Math.round(rows * this.weightOf(this.loopColor)));
         }
         this.loopRowsLeft--;
         return this.loopColor;
+    }
+
+    weightOf(c: number): number {
+        let w = this.colorWeights?.find(x => x.color == c);
+        return w ? Math.max(0, w.weight) : 1;
+    }
+
+    // ---- Color Weights > Exact: màu chỉ sinh đúng số row = tổng số ghế xe màu đó ----
+    exactSpawned: { [c: number]: number } = {};
+    exactQuota: { [c: number]: number } = {};
+
+    isExact(c: number) { return !!this.colorWeights?.find(x => x.color == c)?.exact; }
+
+    // tổng số ghế xe màu c (1 ghế = 1 row); xe chưa dựng thì đếm trong LinearHumanData
+    exactQuotaOf(c: number): number {
+        if(this.exactQuota[c] !== undefined) return this.exactQuota[c];
+        let buses = (this.buses ?? []).filter(b => b?.isValid && !this.isGroupBus(b));
+        if(buses.length) {
+            return this.exactQuota[c] = buses.filter(b => b.color == c).reduce((s, b) => s + b.seats.length, 0);
+        }
+        return LinearHumanData.filter(v => v == c).length;
+    }
+
+    // số row màu c còn được sinh (Infinity nếu màu không bật Exact)
+    exactLeft(c: number): number {
+        if(c === undefined || c < 0 || !this.isExact(c)) return Infinity;
+        return this.exactQuotaOf(c) - (this.exactSpawned[c] ?? 0);
+    }
+
+    // ô i định sinh màu Exact đã phát đủ -> lấy màu ô bên cạnh (cụm liền màu), không có thì màu khác còn sinh được
+    exactSubstitute(i: number): number {
+        let n = this.ringSlotColors.length;
+        let ok = (c: number) => c !== undefined && c >= 0 && this.exactLeft(c) > 0
+            && (!this.stopOn() || this.needColors().has(c));
+        for(const j of [(i + 1) % n, (i - 1 + n) % n]) {
+            if(ok(this.ringSlotColors[j])) return this.ringSlotColors[j];
+        }
+        let list = this.levelColors().filter(ok);
+        if(!list.length) list = this.levelColors().filter(c => this.exactLeft(c) > 0);
+        return list.length ? list[(Math.random() * list.length) | 0] : undefined;
     }
 
     // các màu còn xe cần người (xe ở bãi + xe trong slot chưa đủ người)
@@ -1653,7 +1766,8 @@ export class Game extends Component {
         if(runs.length < 2) return;
         for(let r = 0; r < runs.length; r++) {
             let [i, len] = runs[r];
-            if(len >= min) continue;
+            // cụm của màu Weight < 1 vốn ngắn hơn Loop Rows Min -> so với min đã nhân Weight
+            if(len >= Math.max(1, Math.round(min * (this.weightOf(cols[i]) || 1)))) continue;
             if(((slot - i) % n + n) % n >= len) continue;
             let old = cols[i];
             // Chọn cụm nằm cạnh thật trên đường: ô 0 và ô n-1 chỉ liền nhau qua chỗ dịch chuyển cuối -> đầu đường.
